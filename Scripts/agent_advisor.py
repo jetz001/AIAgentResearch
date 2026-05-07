@@ -7,6 +7,7 @@
 """
 import os, sys, io, json
 from datetime import datetime
+import llm_helper
 
 if sys.stdout.encoding != "utf-8":
     sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
@@ -287,6 +288,15 @@ def print_menu():
 def main(initial_message=""):
     print_banner(); print_menu()
     if initial_message and initial_message != "(ไม่มีข้อความ)":
+        # ดึง Role มาให้ LLM วิเคราะห์
+        my_role = load_my_role()
+        
+        # ขอความเห็นจาก LLM (Ollama/Online)
+        print(f"\n  🧠 กำลังติดต่อ LLM เพื่อเตรียมการตอบกลับ...")
+        roleplay_msg = llm_helper.get_roleplay_response("Advisor Agent", initial_message, my_role, agent_key="advisor")
+        
+        print_box("🎭 ROLEPLAY: 👨‍🏫 Advisor Agent", roleplay_msg, "33")
+        
         print(f"\n  📨 งานจากผู้บริหาร: \"{initial_message[:80]}\"")
         if input("  ➕ เพิ่มเป็น TODO? [Y/N]: ").strip().upper() in ("Y",""):
             t=add_todo(initial_message); print(f"  ✅ TODO #{t['id']}")

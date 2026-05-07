@@ -342,7 +342,8 @@ def dispatch_plan(plan: dict):
             
             roleplay_msg = llm_helper.get_roleplay_response("Orchestrator", 
                                                             f"ส่งงานลำดับที่ {task['order']} ไปยัง {display}: {task['description']}", 
-                                                            orchestrator_role)
+                                                            orchestrator_role,
+                                                            agent_key="orchestrator")
             
             print_box("👔 ORCHESTRATOR", roleplay_msg, "36")
             

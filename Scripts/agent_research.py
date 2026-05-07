@@ -426,7 +426,7 @@ def main(initial_message: str = ""):
         
         # ขอความเห็นจาก LLM (Ollama)
         print(f"\n  🧠 กำลังติดต่อ {llm_helper.OLLAMA_MODEL} เพื่อเตรียมการตอบกลับ...")
-        roleplay_msg = llm_helper.get_roleplay_response("Research Agent", initial_message, my_role)
+        roleplay_msg = llm_helper.get_roleplay_response("Research Agent", initial_message, my_role, agent_key="research")
         
         print_box("🎭 ROLEPLAY: 📚 Research Agent", roleplay_msg, "34")
         

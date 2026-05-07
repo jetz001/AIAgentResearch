@@ -105,12 +105,22 @@ def call_llm(prompt: str, system_prompt: str = "", provider: str = None) -> str:
     except Exception as e:
         return f"⚠️ LLM Error ({provider}): {str(e)}"
 
-def get_roleplay_response(agent_name: str, task_description: str, role_content: str, provider: str = None) -> str:
+def get_roleplay_response(agent_name_display: str, task_description: str, role_content: str, agent_key: str = None) -> str:
     """
     ขอการโต้ตอบแบบ Roleplay จาก LLM ตามบทบาทของ Agent
+    - agent_key: คีย์ของ agent เช่น 'research', 'writer', 'orchestrator'
     """
+    # 1. ตรวจสอบว่าเอเจ้นท์ตัวนี้มี Provider เฉพาะหรือไม่ (เช่น RESEARCH_PROVIDER)
+    provider = None
+    if agent_key:
+        env_key = f"{agent_key.upper()}_PROVIDER"
+        provider = os.getenv(env_key)
+    
+    # ถ้าไม่มี ให้ใช้ DEFAULT_PROVIDER
+    provider = provider or DEFAULT_PROVIDER
+    
     system_prompt = f"""
-คุณคือ {agent_name} หนึ่งในทีม Multi-Agent Research System.
+คุณคือ {agent_name_display} หนึ่งในทีม Multi-Agent Research System.
 นี่คือรายละเอียดบทบาทของคุณ (Role Definition):
 {role_content}
 
@@ -121,6 +131,6 @@ def get_roleplay_response(agent_name: str, task_description: str, role_content: 
 - ความยาวประมาณ 2-4 ประโยค
 """
     
-    user_prompt = f"ผู้บริหารมอบหมายงานให้คุณดังนี้: {task_description}\n\nกรุณาตอบกลับในฐานะ {agent_name}:"
+    user_prompt = f"ผู้บริหารมอบหมายงานให้คุณดังนี้: {task_description}\n\nกรุณาตอบกลับในฐานะ {agent_name_display}:"
     
     return call_llm(user_prompt, system_prompt, provider=provider)

@@ -8,6 +8,7 @@
 import os, sys, io, json
 from datetime import datetime
 import shutil
+import llm_helper
 
 if sys.stdout.encoding != "utf-8":
     sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
@@ -24,6 +25,20 @@ TOOLS_DIR = os.path.join(PROJECT_ROOT, "Workspace", "Tools")
 
 for d in [TODO_DIR, ARCHIVE_DIR, LOGS_DIR, CONFIG_DIR, SANDBOX_DIR, TOOLS_DIR]:
     os.makedirs(d, exist_ok=True)
+
+# ── Roleplay UI Helpers ──
+def print_box(title, content, color_code="37"): # Default White for IT
+    """แสดงกล่องข้อความสไตล์ Roleplay"""
+    print(f"\n\033[{color_code}m┌" + "─" * 68 + "┐")
+    print(f"│ {title:<66} │")
+    print("├" + "─" * 68 + "┤")
+    for line in content.split('\n'):
+        # จัดการข้อความยาวเกินไป
+        while len(line) > 66:
+            print(f"│ {line[:66]:<66} │")
+            line = line[66:]
+        print(f"│ {line:<66} │")
+    print("└" + "─" * 68 + "┘\033[0m")
 
 # ── Role ──
 def load_my_role() -> str:
@@ -289,6 +304,15 @@ def print_menu():
 def main(initial_message=""):
     print_banner(); print_menu()
     if initial_message and initial_message != "(ไม่มีข้อความ)":
+        # ดึง Role มาให้ LLM วิเคราะห์
+        my_role = load_my_role()
+        
+        # ขอความเห็นจาก LLM (Ollama/Online)
+        print(f"\n  🧠 กำลังติดต่อ LLM เพื่อเตรียมการตอบกลับ...")
+        roleplay_msg = llm_helper.get_roleplay_response("IT Agent", initial_message, my_role, agent_key="it")
+        
+        print_box("🎭 ROLEPLAY: 💻 IT Agent", roleplay_msg, "37")
+        
         print(f"\n  📨 งานจากผู้บริหาร: \"{initial_message[:80]}\"")
         if input("  ➕ เพิ่มเป็น TODO? [Y/N]: ").strip().upper() in ("Y",""):
             t=add_todo(initial_message); print(f"  ✅ TODO #{t['id']}")

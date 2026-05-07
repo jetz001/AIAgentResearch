@@ -332,7 +332,8 @@ def approve_plan(plan: dict) -> bool:
         
         roleplay_msg = llm_helper.get_roleplay_response("Orchestrator", 
                                                         f"อนุมัติแผนงานวิจัยต้นฉบับ: {plan['original_message']}", 
-                                                        orchestrator_role)
+                                                        orchestrator_role,
+                                                        agent_key="orchestrator")
         
         print_box("👔 ORCHESTRATOR", roleplay_msg, "36")
         
