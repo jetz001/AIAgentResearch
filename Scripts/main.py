@@ -12,6 +12,7 @@
 import os
 import sys
 import io
+import json
 from datetime import datetime
 import llm_helper
 
@@ -47,11 +48,23 @@ SCRIPTS_DIR = os.path.join(PROJECT_ROOT, "Scripts")
 LOGS_DIR = os.path.join(PROJECT_ROOT, "Logs")
 os.makedirs(LOGS_DIR, exist_ok=True)
 
-def log_action(action: str):
+def log_action(action: str, phase: str = "IMPLEMENTATION"):
     """บันทึกประวัติการทำงานของผู้บริหารลง log"""
     log_file = os.path.join(LOGS_DIR, "orchestrator_agent.log")
     with open(log_file, "a", encoding="utf-8") as f:
-        f.write(f"[{datetime.now():%Y-%m-%d %H:%M:%S}] [ORCHESTRATOR] {action}\n")
+        f.write(f"[{datetime.now():%Y-%m-%d %H:%M:%S}] [ORCHESTRATOR] [{phase}] {action}\n")
+
+def log_score_csv(plan_id: str, task_order: int, agent: str, score: int, note: str):
+    """บันทึกคะแนนลง CSV เพื่อการวิเคราะห์"""
+    csv_file = os.path.join(LOGS_DIR, "answer_scores.csv")
+    file_exists = os.path.exists(csv_file)
+    with open(csv_file, "a", encoding="utf-8") as f:
+        if not file_exists:
+            f.write("Timestamp,PlanID,TaskOrder,Agent,Score,Note\n")
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        # Clean note of commas to avoid CSV break
+        clean_note = note.replace(",", ";").replace("\n", " ")
+        f.write(f"{timestamp},{plan_id},{task_order},{agent},{score},{clean_note}\n")
 
 # ── Roleplay UI Helpers ──
 def print_box(title, content, color_code="36"): # Default Cyan
@@ -292,7 +305,8 @@ def dispatch_to_agent(agent_name: str, message: str):
     print(f"  📄 Script: {os.path.basename(script_path)}")
     print("-" * 60)
 
-    os.system(f'python "{script_path}" "{message}"')
+    import subprocess
+    subprocess.run(["python", script_path, message])
     log_action(f"ส่งงานไปยัง {agent_name} สำเร็จ")
 
 
@@ -311,12 +325,14 @@ from planner import (
 # ──────────────────────────────────────────────
 # 🚀 Dispatch ตามแผนงาน (ทีละ task)
 # ──────────────────────────────────────────────
-def dispatch_plan(plan: dict):
+def dispatch_plan(plan: dict, automated: bool = False):
     """กระจายงานตามแผนที่ approve แล้ว — ทีละ task"""
     tasks = get_approved_tasks(plan)
     if not tasks:
         print("  📭 ไม่มี task ที่ต้องทำ")
         return
+
+    context_summary = ""
 
     print(f"\n  🚀 เริ่มกระจายงาน ({len(tasks)} tasks)")
     print("=" * 60)
@@ -328,7 +344,21 @@ def dispatch_plan(plan: dict):
         print(f"  👤 Agent: {display}")
         print(f"  📝 งาน:   {task['description']}")
 
-        confirm = input(f"  ▶️  ส่งงานนี้ไป {display}? [Y/N/skip]: ").strip().upper()
+        # เตรียมข้อความส่งให้ Agent (Boss to Subordinate Style)
+        boss_instruction = task["description"]
+        original_request = plan.get("original_message", "")
+        
+        full_message = f"🎯 คำสั่งจากผู้บริหาร (Orchestrator):\n{boss_instruction}\n\n"
+        full_message += f"📋 ข้อความต้นฉบับจาก User:\n\"{original_request}\"\n"
+        
+        if context_summary.strip():
+            full_message += f"\n💡 ข้อมูลประกอบจากขั้นตอนก่อนหน้า (Context):\n{context_summary}"
+
+        if not automated:
+            confirm = input(f"  ▶️  ส่งงานนี้ไป {display}? [Y/N/skip]: ").strip().upper()
+        else:
+            print(f"  ▶️  [AUTO] ส่งงานไป {display}")
+            confirm = "Y"
 
         if confirm == "Y" or confirm == "":
             update_task_status(plan, task["order"], "in_progress")
@@ -347,19 +377,58 @@ def dispatch_plan(plan: dict):
             
             print_box("👔 ORCHESTRATOR", roleplay_msg, "36")
             
-            dispatch_to_agent(agent, task["description"])
+            dispatch_to_agent(agent, full_message)
             
-            # ถามผลหลัง agent ทำเสร็จ
-            result_status = input(f"\n  ผลลัพธ์ task #{task['order']}? [done/blocked/pending]: ").strip().lower()
-            if result_status in ("done", "blocked", "pending"):
-                result_note = ""
-                if result_status == "done":
-                    result_note = input("  📝 บันทึกผล (Enter = ข้าม): ").strip()
-                update_task_status(plan, task["order"], result_status, result_note)
-                log_action(f"Task #{task['order']} (Agent: {agent}) -> {result_status}")
+            if not automated:
+                # ถามผลหลัง agentทำเสร็จ
+                result_status = input(f"\n  ผลลัพธ์ task #{task['order']}? [done/blocked/pending]: ").strip().lower()
+                if result_status in ("done", "blocked", "pending"):
+                    result_note = ""
+                    thinking_note = ""
+                    score = 0
+                    if result_status == "done":
+                        thinking_note = input("  💭 บันทึกกระบวนการคิดของ Agent (Thinking) (Enter = ข้าม): ").strip()
+                        result_note = input("  📄 บันทึกผลลัพธ์ที่ได้ (Result) (Enter = ข้าม): ").strip()
+                        score_input = input("  ⭐ คะแนนคำตอบ (1-5): ").strip()
+                        if score_input.isdigit():
+                            score = int(score_input)
+                        log_score_csv(plan["id"], task["order"], agent, score, result_note)
+                    
+                    update_task_status(plan, task["order"], result_status, result_note, score, thinking_note)
+                    log_action(f"Task #{task['order']} (Agent: {agent}) -> {result_status} (Score: {score})")
+                else:
+                    update_task_status(plan, task["order"], "done")
+                    log_action(f"Task #{task['order']} (Agent: {agent}) -> done")
             else:
-                update_task_status(plan, task["order"], "done")
-                log_action(f"Task #{task['order']} (Agent: {agent}) -> done")
+                # ระบบอัตโนมัติ: ดึงข้อมูลจริงจาก TODO ของ Agent
+                result_note = "ดำเนินการสำเร็จตามแผนงาน"
+                thinking_note = "วิเคราะห์ข้อมูลและดำเนินการตามบทบาท"
+                
+                # แมปไฟล์ TODO ของแต่ละ Agent
+                todo_paths = {
+                    "research": os.path.join(PROJECT_ROOT, "Workspace", "Decision", "research_tasks", "research_todo.json"),
+                    "writer": os.path.join(PROJECT_ROOT, "Workspace", "Decision", "writer_tasks", "writer_todo.json"),
+                }
+                
+                agent_todo_file = todo_paths.get(agent)
+                if agent_todo_file and os.path.exists(agent_todo_file):
+                    try:
+                        with open(agent_todo_file, "r", encoding="utf-8") as f:
+                            todos = json.load(f)
+                            if todos:
+                                # ค้นหา TODO ล่าสุดที่ตรงกับคำสั่ง (หรืออันล่าสุด)
+                                latest = todos[-1]
+                                result_note = latest.get("result", result_note)
+                                thinking_note = latest.get("thinking", thinking_note)
+                    except Exception as e:
+                        print(f"  ⚠️ ไม่สามารถอ่านผลลัพธ์จาก {agent}: {e}")
+
+                update_task_status(plan, task["order"], "done", result_note, 5, thinking_note)
+                print(f"  ✅ Task #{task['order']} สำเร็จ (Auto)")
+                
+                # เพิ่มลง Context สำหรับ Agent ถัดไป
+                context_summary += f"\n[ผลลัพธ์จาก {display}]: {result_note}\n"
+            
             print(f"  ✅ Task #{task['order']} อัปเดตแล้ว")
 
         elif confirm == "SKIP":
@@ -373,6 +442,44 @@ def dispatch_plan(plan: dict):
     print("\n" + "=" * 60)
     print("  📊 สรุปแผนงานหลังกระจาย:")
     show_tracker()
+
+def generate_final_report(plan: dict):
+    """สร้างรายงานสรุปผลงานทั้งหมดสำหรับ User"""
+    orchestrator_role = load_role("orchestrator")
+    
+    # รวบรวมข้อมูลงาน
+    work_summary = f"ภารกิจหลัก: {plan['original_message']}\n"
+    work_summary += f"กระบวนการคิดของผู้บริหาร (Orchestrator Thinking): {plan.get('thinking', 'N/A')}\n\n"
+    work_summary += "--- ลำดับการดำเนินการ (Plan Flow) ---\n"
+    for task in plan["tasks"]:
+        status = task["status"]
+        agent = AGENT_DISPLAY.get(task["agent"], task["agent"])
+        score = f" (คะแนน: {task.get('score', 0)}/5)" if status == "done" else ""
+        work_summary += f"{task['order']}. [{status}] {agent}: {task['description']}{score}\n"
+        if task.get("thinking"):
+            work_summary += f"   - การวิเคราะห์ของ Agent: {task['thinking']}\n"
+        if task.get("result"):
+            work_summary += f"   - ผลลัพธ์ที่ได้: {task['result']}\n"
+
+    print(f"\n  🧠 Orchestrator กำลังรวบรวมข้อมูลสรุปรายงานผลงาน (Final Reporting)...")
+    report_content = llm_helper.get_report_response("Orchestrator Agent", work_summary, orchestrator_role, agent_key="orchestrator")
+    
+    print_box("📄 FINAL REPORT: 🎯 Orchestrator", report_content, "36")
+    
+    # บันทึกลงไฟล์
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    output_dir = os.path.join(PROJECT_ROOT, "Output", "reports")
+    os.makedirs(output_dir, exist_ok=True)
+    report_file = os.path.join(output_dir, f"orchestrator_final_report_{timestamp}.md")
+    with open(report_file, "w", encoding="utf-8") as f:
+        f.write(f"# 🎯 Orchestrator Final Report\n")
+        f.write(f"Plan ID: {plan['id']}\n")
+        f.write(f"Date: {datetime.now().strftime('%Y-%m-%d %H:%M')}\n\n")
+        f.write(report_content)
+    
+    log_action(f"สร้างรายงานสรุปผลงานสุดท้ายสำเร็จ: {os.path.basename(report_file)}", phase="REPORTING")
+    print(f"  💾 บันทึกรายงานสรุปผลงานที่: {report_file}")
+    return report_content
 
 
 # ──────────────────────────────────────────────
@@ -463,11 +570,27 @@ def main():
         # ── ข้อความจาก user → สร้างแผน → approve → กระจายงาน ──
         print("\n  🧠 กำลังวิเคราะห์ข้อความ...")
         log_action(f"รับคำสั่งจาก user: {user_input[:50]}")
+        
+        # --- Thinking Phase ---
+        print(f"\n  🧠 Orchestrator กำลังวิเคราะห์เป้าหมายหลัก (Thinking)...")
+        my_role = load_role("orchestrator")
+        thinking_msg = llm_helper.get_thinking_response("Orchestrator Agent", user_input, my_role, agent_key="orchestrator")
+        print_box("💭 THINKING: 🎯 Orchestrator", thinking_msg, "36")
+        log_action(f"ผู้บริหารวิเคราะห์เป้าหมาย: {user_input[:50]}", phase="THINKING")
+
+        # --- Implementation Phase ---
+        print(f"\n  " + "═"*20 + " 🛠️ Orchestrator Implementation " + "═"*20)
+        log_action(f"เริ่มสร้างและดำเนินการตามแผนงาน", phase="IMPLEMENTATION")
+        
         plan = create_and_approve_plan(user_input)
 
         if plan:
-            log_action("อนุมัติแผนงานแล้ว เริ่มกระจายงาน")
+            plan["thinking"] = thinking_msg # บันทึก Thinking ลงใน Plan
+            log_action(f"อนุมัติแผนงาน {plan['id']} เริ่มกระจายงาน", phase="IMPLEMENTATION")
             dispatch_plan(plan)
+            
+            # --- Reporting Phase ---
+            generate_final_report(plan)
         else:
             # fallback: ถ้าไม่ approve แผน → ถามเลือก agent ตรง
             print("\n  💡 หรือจะเลือก agent ด้วยตัวเอง?")
@@ -480,5 +603,133 @@ def main():
 
 
 # ──────────────────────────────────────────────
+def main():
+    is_automated = os.getenv("AUTOMATED") == "1"
+    # รองรับการรันแบบอัตโนมัติผ่าน Command Line
+    if len(sys.argv) > 1:
+        os.environ["AUTOMATED"] = "1"
+        user_input = sys.argv[1]
+        print_banner()
+        print(f"\n🚀 [HEADLESS MODE] รับคำสั่ง: {user_input}")
+        
+        # Thinking
+        my_role = load_role("orchestrator")
+        thinking_msg = llm_helper.get_thinking_response("Orchestrator Agent", user_input, my_role, agent_key="orchestrator")
+        print_box("💭 THINKING: 🎯 Orchestrator", thinking_msg, "36")
+        
+        # Plan
+        plan = create_and_approve_plan(user_input, automated=True)
+        if plan:
+            plan["thinking"] = thinking_msg
+            dispatch_plan(plan, automated=True)
+            generate_final_report(plan)
+        return
+
+    clear_screen()
+    log_action("--- เปิดระบบ Orchestrator ---")
+    print_banner()
+    print_agent_menu()
+
+    while True:
+        print("-" * 60)
+        print("📌 คำสั่ง:")
+        print("   วาง (paste) ข้อความ = สร้างแผน → กระจายงาน")
+        print("   'status'  = 📊 ดูสถานะงานทั้งหมด")
+        print("   'update'  = ✏️  อัปเดตสถานะ task")
+        print("   'role'    = 📄 ดู role ของผู้บริหาร")
+        print("   'role N'  = 📄 ดู role agent (เช่น role 1)")
+        print("   '1'-'7'   = 🎯 ส่งงานตรงไป agent")
+        print("   'menu'    = 📋 ดู agent list")
+        print("   'quit'    = 👋 ออก")
+        print("-" * 60)
+
+        try:
+            user_input = input("\n🔹 ผู้บริหาร > ").strip()
+        except (KeyboardInterrupt, EOFError):
+            print("\n\n👋 ออกจากระบบ")
+            break
+
+        if not user_input:
+            continue
+
+        # ── คำสั่งพิเศษ ──
+        cmd = user_input.lower()
+
+        if cmd == "quit":
+            print("\n👋 ออกจากระบบ — ขอบคุณครับ")
+            log_action("👋 ผู้บริหารออกจากระบบ")
+            break
+
+        if cmd == "menu":
+            clear_screen()
+            print_banner()
+            print_agent_menu()
+            continue
+
+        if cmd == "clear":
+            clear_screen()
+            print_banner()
+            continue
+
+        if cmd == "status":
+            show_tracker()
+            log_action("📊 ผู้บริหารเรียกดูสถานะงาน (Status Tracker)")
+            continue
+
+        if cmd == "update":
+            log_action("✏️ ผู้บริหารเข้าสู่โหมดอัปเดตสถานะงาน (Interactive Update)")
+            interactive_tracker()
+            continue
+
+        if cmd.startswith("role"):
+            parts = cmd.split()
+            if len(parts) == 1:
+                print("\n" + load_role("orchestrator"))
+                log_action("📄 ผู้บริหารเรียกดู Role ของตัวเอง")
+            else:
+                agent_key = AGENT_NUM_MAP.get(parts[1])
+                if agent_key:
+                    print(f"\n" + load_role(agent_key))
+                    log_action(f"📄 ผู้บริหารเรียกดู Role ของ {agent_key}")
+                else:
+                    print("  ❌ ระบุเลข 1-7 เช่น 'role 1' = Research Agent")
+            continue
+
+        if user_input in AGENT_NUM_MAP:
+            agent = AGENT_NUM_MAP[user_input]
+            print(f"\n  ✅ เลือก {AGENT_DISPLAY[agent]} โดยตรง (ไม่ผ่านแผน)")
+            log_action(f"🎯 ผู้บริหารเลือก {agent} โดยตรง (Direct Dispatch)")
+            msg = input("  📝 ข้อความที่จะส่ง (หรือ Enter เพื่อข้าม): ").strip()
+            dispatch_to_agent(agent, msg if msg else "(ไม่มีข้อความ)")
+            continue
+
+        print("\n  🧠 กำลังวิเคราะห์ข้อความ...")
+        log_action(f"รับคำสั่งจาก user: {user_input[:50]}")
+        
+        print(f"\n  🧠 Orchestrator กำลังวิเคราะห์เป้าหมายหลัก (Thinking)...")
+        my_role = load_role("orchestrator")
+        thinking_msg = llm_helper.get_thinking_response("Orchestrator Agent", user_input, my_role, agent_key="orchestrator")
+        print_box("💭 THINKING: 🎯 Orchestrator", thinking_msg, "36")
+        log_action(f"ผู้บริหารวิเคราะห์เป้าหมาย: {user_input[:50]}", phase="THINKING")
+
+        print(f"\n  " + "═"*20 + " 🛠️ Orchestrator Implementation " + "═"*20)
+        log_action(f"เริ่มสร้างและดำเนินการตามแผนงาน", phase="IMPLEMENTATION")
+        
+        plan = create_and_approve_plan(user_input, automated=is_automated)
+
+        if plan:
+            plan["thinking"] = thinking_msg 
+            log_action(f"อนุมัติแผนงาน {plan['id']} เริ่มกระจายงาน", phase="IMPLEMENTATION")
+            dispatch_plan(plan, automated=is_automated)
+            generate_final_report(plan)
+        else:
+            print("\n  💡 หรือจะเลือก agent ด้วยตัวเอง?")
+            print_agent_menu()
+            choice = input("  เลือกเลข [1-7] หรือ Enter = ข้าม: ").strip()
+            if choice in AGENT_NUM_MAP:
+                agent = AGENT_NUM_MAP[choice]
+                log_action(f"🎯 ผู้บริหารเลือก {agent} แบบแมนนวลหลังยกเลิกแผน")
+                dispatch_to_agent(agent, user_input)
+
 if __name__ == "__main__":
     main()

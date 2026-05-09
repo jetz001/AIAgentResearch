@@ -1,0 +1,41 @@
+[
+  {
+    "id": 1,
+    "description": "จัดการเรื่อง: สรุป (จากข้อความ user)",
+    "skill_id": "",
+    "status": "pending",
+    "thinking": "## กระบวนการคิด: \n\n**1. เข้าใจข้อมูล:** \n\nก่อนที่จะเริ่มจัดการเรื่อง \"สรุป\" จำเป็นต้องเข้าใจข้อมูลที่ได้รับมาก่อน! \n\n* **ข้อความ user**:  จำเป็นต้องมีข้อมูลที่ให้ไว้โดยตรงเพื่อสร้างสรุปอย่างถูกต้อง \n    * กรณีไหนต้องการสรุปบทกวี?\n    * บทใดที่อยากให้สรุป? (เรื่อง, เนื้อหา)\n    * ควรคำนึงถึงจุดประสงค์ของสรุป (เช่น: เพื่อนำไปใช้ในงานวิจัย?) \n   \n\n**2.  ตัวเลือกการจัดทำ:** \n\n* **สั้นๆ**: รู้สึกว่าต้องเน้นความสั้นและตรงจุด  ถ้าไม่ต้องการสรุปยาวนาน  ต้องทราบว่าบทความนั้นมีจุดสำคัญอะไรบ้าง  \n* **ละเอียด**: ถ้าต้องการให้สรุปที่ครบถ้วนเต็มรูปแบบ ควรจะขอข้อมูลเพิ่มเติมเช่น  ตัวอย่างข้อความที่ต้องการสรุป\n \n\n\n**3. แสดงความคิด:**\n\n  * จะทำแบบสรุปทั่วไป หรือเป็นการสรุปเฉพาะเรื่องสำคัญของบทความนั้น?  (เช่น: เผยแพร่ในนิยายสั้น)\n   * **ถ้าต้องการสรุปโดยตรง**: ข้อความที่ให้มา \n    *  คำอธิบายเพิ่มเติม: เช่น  ความหมาย, ความสนุก, ความน่าสนใจ\n\n**4. การตัดสิน:**\n\n* รายละเอียดและความสำคัญของบทความ \n\n\n**5. กระบวนการทำงาน:** \n\n* **สรุป**: ข้อความที่ให้มา + แนวคิด + สรุป (แบบสั้น)\n    \n \n\n**6. ความเสี่ยง:**\n\n  * ควรตรวจสอบข้อมูลอีกครั้งก่อนที่จะเริ่มสรุปเพื่อป้องกันข้อผิดพลาด\n\n\n**7. กระบวนการเรียบร้อย:**\n\n   \n   - **ข้อสรุป**: มีความเชื่อมโยงกับบทความ original \n      -  สรุป \n\n     -  คำอธิบายเพิ่มเติม: เช่น ความหมาย, ความสนุก, ความน่าสนใจ\n\n\n\n",
+    "result": "",
+    "output_file": "",
+    "created": "2026-05-09T14:26:02.471025",
+    "updated": "2026-05-09T14:26:02.481379",
+    "review": "",
+    "review_note": ""
+  },
+  {
+    "id": 2,
+    "description": "--- ข้อมูลประกอบ (Context) ---",
+    "skill_id": "",
+    "status": "pending",
+    "thinking": "⚠️ LLM Error (ollama): HTTPConnectionPool(host='localhost', port=11434): Read timed out. (read timeout=300)",
+    "result": "",
+    "output_file": "",
+    "created": "2026-05-09T15:25:10.420702",
+    "updated": "2026-05-09T15:25:10.474655",
+    "review": "",
+    "review_note": ""
+  },
+  {
+    "id": 3,
+    "description": "--- ข้อมูลประกอบ (Context) ---",
+    "skill_id": "",
+    "status": "pending",
+    "thinking": "## กระบวนการคิดในการเขียน thesis/manuscript 🧠\n\n**1.  Understanding the Project Scope:** 🧐\n\n- **Mission:** จะสร้าง thesis หรือ manuscript เป็นอย่างไรบ้าง? โดยเฉพาะอย่างยิ่งต้องสื่อสารกับผู้เกี่ยวข้องว่า thesis/manuscript นี้จะทำอะไร?\n- **Target Audience:** ผู้ที่ต้องการอ่านเนื้อหา (นักศึกษา, ผู้อำนวยการ,  ผู้เชี่ยวชาญ) \n\n**2. Knowledge of the Thesis/Manuscript:** 📚\n\n- **Topic:**  บทบาทของ thesis/manuscript ในเรื่องนั้นมีความสำคัญอย่างไร?\n- **Research Goals:** สิ่งที่ต้องการจะสืบค้นหาข้อมูลเพื่อตอบโจทย์บทความนี้\n- **Keywords:** คำสำคัญที่เกี่ยวข้องกับหัวข้อและ thesis/manuscript นี้\n\n**3. Planning and Prioritization:**  🗓️ \n\n- **Timeline:** กำหนดเวลาในการทำงานเป็นช่วงๆ เช่น: outline draft, writing chapters, abstract, citation etc. \n- **Priorities:** แยกงานเป็นส่วน ๆ ที่สำคัญมาก่อน (เช่น chapter outline, thesis structure) \n- **Skills to be used:**  ใช้ skill ที่เหมาะสมในแต่ละกระบวนการ (คำนวณ time management)\n\n\n**4. Execution and Iteration:** ✍️ 💻\n\n- **Writing Chapters:**   เขียน draft chapter ตาม order  ของ outline. \n- **Revision & Feedback:** การปรับปรุง draft และรับฟังข้อเสนอแนะจาก advisor/reviewer \n\n**5. Refinement and Finalization:** 📚  \n\n - **Citation Integration:** สร้าง Citation list based on guidelines.\n - **Proofreading and Formatting:** ตรวจสอบความถูกต้องและรูปแบบ. \n\n\n\n**สิ่งที่ต้องระวัง:**\n\n* **Plagiarism:** ปฏิบัติตาม copyright และแหล่งข้อมูล\n* **Time Management:** จัดเวลาให้ดี  \n* **Feedback Integration:** เก็บ feedback จาก advisor/reviewer\n\n\n## Summary of Thinking Process\n\nThe Writer Agent will break down the task into smaller steps to ensure efficiency. \nHere's a general overview: \n1. Understanding the Project Scope and goals, including keywords and target audience. \n2. Utilizing research skills for gathering information on the project. \n3. Planning and prioritization for effective work management, including timeline and skill usage. \n4. Executing and iterating on draft chapters while integrating feedback. \n5. Refining the thesis/manuscript with final proofreading and formatting.  \n\n\n\n",
+    "result": "",
+    "output_file": "",
+    "created": "2026-05-09T15:46:28.681615",
+    "updated": "2026-05-09T15:46:28.697897",
+    "review": "",
+    "review_note": ""
+  }
+]

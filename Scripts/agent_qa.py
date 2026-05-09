@@ -75,8 +75,9 @@ SI = {"pending":"⬜","in_progress":"🔄","done":"✅","submitted":"📤",
 
 def show_todo():
     todos = load_todo()
-    if not todos: print("\n  📭 ไม่มี TODO"); return
-    print("\n  ┌─────┬──────────────────────────────────┬──────────┬────────┬──────┐")
+    if not todos: print("\n  📭 ไม่มีงานในแผนการดำเนินการ (TODO)"); return
+    print("\n  " + "─"*20 + " 🛠️ Implementation Status " + "─"*20)
+    print("  ┌─────┬──────────────────────────────────┬──────────┬────────┬──────┐")
     print("  │  #  │ งาน                              │ สถานะ    │ Review │ Pass │")
     print("  ├─────┼──────────────────────────────────┼──────────┼────────┼──────┤")
     for t in todos:
@@ -206,6 +207,28 @@ def run_skill(num):
         update_todo(todo["id"], status="submitted")
         print("  📤 ส่งแล้ว")
 
+def generate_report(work_details: str):
+    """สร้างรายงานสรุปผลการทำงาน"""
+    my_role = load_my_role()
+    print(f"\n  🧠 กำลังสรุปรายงาน (Reporting) เพื่อส่งผู้บริหาร...")
+    report_content = llm_helper.get_report_response("QA Agent", work_details, my_role, agent_key="qa")
+    
+    print_box("📄 REPORT: ✅ QA Agent", report_content, "31")
+    
+    # บันทึกลงไฟล์
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    output_dir = os.path.join(PROJECT_ROOT, "Output", "reports")
+    os.makedirs(output_dir, exist_ok=True)
+    report_file = os.path.join(output_dir, f"qa_report_{timestamp}.md")
+    with open(report_file, "w", encoding="utf-8") as f:
+        f.write(f"# 📊 QA Report\n")
+        f.write(f"Date: {datetime.now().strftime('%Y-%m-%d %H:%M')}\n\n")
+        f.write(report_content)
+    
+    log_action(f"สร้างรายงานสำเร็จ: {os.path.basename(report_file)}")
+    print(f"  💾 บันทึกรายงาน: {report_file}")
+    return report_content
+
 # ── Submit / Review / Revision ──
 def submit_to_orchestrator():
     todos = load_todo()
@@ -268,9 +291,9 @@ def handle_revisions():
                         status="done", review="", review_note="")
             print(f"  ✅ ตรวจ #{t['id']} ใหม่แล้ว — พร้อม submit")
 
-def log_action(action):
+def log_action(action, phase="IMPLEMENTATION"):
     with open(os.path.join(LOGS_DIR,"qa_agent.log"),"a",encoding="utf-8") as f:
-        f.write(f"[{datetime.now():%Y-%m-%d %H:%M:%S}] [QA] {action}\n")
+        f.write(f"[{datetime.now():%Y-%m-%d %H:%M:%S}] [QA] [{phase}] {action}\n")
 
 # ── UI ──
 def print_banner():
@@ -303,7 +326,7 @@ def print_menu():
     print("  │  4  │ 📐 Format Validation              │")
     print("  │  5  │ 📋 Final Checklist                │")
     print("  ├─────┼───────────────────────────────────┤")
-    print("  │todo │ 📋 ดู TODO list                    │")
+    print("  │todo │ 🛠️ Implementation (TODO List)           │")
     print("  │sub  │ 📤 Submit ให้ผู้บริหาร             │")
     print("  │rev  │ 🔁 งานตีกลับ                      │")
     print("  │role │ 📄 ดู Role ตัวเอง                  │")
@@ -323,10 +346,22 @@ def main(initial_message=""):
         
         print_box("🎭 ROLEPLAY: ✅ QA Agent", roleplay_msg, "31")
         
-        print(f"\n  📨 งานจากผู้บริหาร: \"{initial_message[:80]}\"")
-        if input("  ➕ เพิ่มเป็น TODO? [Y/N]: ").strip().upper() in ("Y",""):
-            t=add_todo(initial_message); print(f"  ✅ TODO #{t['id']}")
-            log_action(f"รับงาน: {initial_message[:50]}")
+        # --- Thinking Phase ---
+        print(f"\n  🧠 กำลังวิเคราะห์งาน (Thinking)...")
+        thinking_msg = llm_helper.get_thinking_response("QA Agent", initial_message, my_role, agent_key="qa")
+        print_box("💭 THINKING: ✅ QA Agent", thinking_msg, "31")
+        log_action(f"กระบวนการคิดสำหรับ: {initial_message[:50]}", phase="THINKING")
+
+        # --- Implementation Phase ---
+        print(f"\n  " + "═"*20 + " 🛠️ Implementation Phase " + "═"*20)
+        print(f"  📨 งานที่ได้รับจากผู้บริหาร: \"{initial_message[:80]}\"")
+        if input("  ➕ เพิ่มเข้าแผนการดำเนินการ (TODO)? [Y/N]: ").strip().upper() in ("Y",""):
+            t=add_todo(initial_message); print(f"  ✅ เพิ่มแผนงานสำเร็จ #{t['id']}")
+            log_action(f"เริ่ม Implementation (เพิ่มแผนงาน): {initial_message[:50]}", phase="IMPLEMENTATION")
+            
+            # --- Auto-execution log ---
+            log_action(f"ดำเนินการตามแผนงาน TODO #{t['id']}", phase="IMPLEMENTATION")
+            generate_report(f"เริ่มดำเนินการ: {initial_message}\nสร้างแผนงาน (TODO) #{t['id']}")
     while True:
         print("\n"+"-"*50)
         try: cmd = input("  ✅ QA > ").strip().lower()
@@ -336,6 +371,11 @@ def main(initial_message=""):
         if cmd=="menu": print_menu(); continue
         if cmd=="todo": show_todo(); continue
         if cmd in ("sub","submit"): submit_to_orchestrator(); continue
+        if cmd=="report":
+            todos = load_todo()
+            summary = "\n".join([f"- {t['description']} ({t['status']})" for t in todos[-5:]])
+            generate_report(f"สถานะงานล่าสุด:\n{summary}")
+            continue
         if cmd in ("rev","revision"): handle_revisions(); continue
         if cmd=="role": print("\n"+load_my_role()); continue
         if cmd=="review": orchestrator_review(); continue

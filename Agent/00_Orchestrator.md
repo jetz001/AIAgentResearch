@@ -151,6 +151,12 @@ for phase in phases:
 - **เกณฑ์:** in_progress เกิน 24 ชม. → แจ้งเตือน
 - **Action:** แจ้งผู้บริหาร → ถาม: ทำต่อ / assign ใหม่ / ยกเลิก
 
+### SK-ORC-T04: ให้คะแนนคำตอบ (Answer Scoring)
+- **ทำอะไร:** ให้คะแนนความพึงพอใจต่อผลลัพธ์ของ Agent (1-5 ดาว)
+- **ทำตอนไหน:** หลังจาก task สถานะเป็น `done`
+- **บันทึก:** คะแนนจะถูกเก็บใน Plan JSON และ `Logs/answer_scores.csv`
+- **ประโยชน์:** เพื่อประเมินประสิทธิภาพของ Agent แต่ละตัวในระยะยาว
+
 ---
 
 ## 🎯 ทักษะตัดสินใจ (Decision Skills)
@@ -241,6 +247,7 @@ Orchestrator ──assign──→ Research Agent
 | ติดตาม | SK-ORC-T01 | ดูสถานะงาน |
 | ติดตาม | SK-ORC-T02 | อัปเดตสถานะ |
 | ติดตาม | SK-ORC-T03 | ตรวจจับงานค้าง |
+| ติดตาม | SK-ORC-T04 | ให้คะแนนคำตอบ |
 | ตัดสินใจ | SK-ORC-D01 | จัดการ Conflict |
 | ตัดสินใจ | SK-ORC-D02 | จัด Priority |
 | ตัดสินใจ | SK-ORC-D03 | Escalation |
@@ -248,5 +255,5 @@ Orchestrator ──assign──→ Research Agent
 
 ---
 
-> **Version:** 2.0  
-> **Last Updated:** 2026-05-07
+> **Version:** 2.1  
+> **Last Updated:** 2026-05-09

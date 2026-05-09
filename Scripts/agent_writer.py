@@ -58,10 +58,25 @@ def load_todo() -> list[dict]:
 def save_todo(t): 
     with open(_fp(),"w",encoding="utf-8") as f: json.dump(t,f,ensure_ascii=False,indent=2)
 
+def clean_description(msg):
+    # กรณีรูปแบบใหม่
+    if "คำสั่งจากผู้บริหาร (Orchestrator):" in msg:
+        # ดึงบรรทัดถัดจากหัวข้อ
+        lines = msg.split("คำสั่งจากผู้บริหาร (Orchestrator):")[-1].strip().split("\n")
+        if lines:
+            return lines[0].strip()
+    
+    # กรณีรูปแบบเก่า (เพื่อความยืดหยุ่น)
+    if "--- งานที่ต้องทำ ---" in msg:
+        return msg.split("--- งานที่ต้องทำ ---")[-1].strip()
+        
+    # ถ้าไม่เจอเลย เอา 50 ตัวแรก
+    return (msg[:50].strip() + "...") if len(msg) > 50 else msg
+
 def add_todo(desc, skill_id=""):
     todos = load_todo()
     t = {"id":len(todos)+1,"description":desc,"skill_id":skill_id,
-         "status":"pending","result":"","output_file":"",
+         "status":"pending","thinking":"","result":"","output_file":"",
          "created":datetime.now().isoformat(),"updated":"",
          "review":"","review_note":""}
     todos.append(t); save_todo(todos); return t
@@ -79,8 +94,9 @@ SI = {"pending":"⬜","in_progress":"🔄","done":"✅","submitted":"📤",
 
 def show_todo():
     todos = load_todo()
-    if not todos: print("\n  📭 ไม่มี TODO"); return
-    print("\n  ┌─────┬──────────────────────────────────┬──────────┬────────┐")
+    if not todos: print("\n  📭 ไม่มีงานในแผนการดำเนินการ (TODO)"); return
+    print("\n  " + "─"*20 + " 🛠️ Implementation Status " + "─"*20)
+    print("  ┌─────┬──────────────────────────────────┬──────────┬────────┐")
     print("  │  #  │ งาน                              │ สถานะ    │ Review │")
     print("  ├─────┼──────────────────────────────────┼──────────┼────────┤")
     for t in todos:
@@ -150,6 +166,28 @@ def run_skill(num):
             update_todo(todo["id"], status="submitted")
             print(f"  📤 ส่งแล้ว")
 
+def generate_report(work_details: str):
+    """สร้างรายงานสรุปผลการทำงาน"""
+    my_role = load_my_role()
+    print(f"\n  🧠 กำลังสรุปรายงาน (Reporting) เพื่อส่งผู้บริหาร...")
+    report_content = llm_helper.get_report_response("Writer Agent", work_details, my_role, agent_key="writer")
+    
+    print_box("📄 REPORT: ✍️ Writer Agent", report_content, "35")
+    
+    # บันทึกลงไฟล์
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    output_dir = os.path.join(PROJECT_ROOT, "Output", "reports")
+    os.makedirs(output_dir, exist_ok=True)
+    report_file = os.path.join(output_dir, f"writer_report_{timestamp}.md")
+    with open(report_file, "w", encoding="utf-8") as f:
+        f.write(f"# 📊 Writer Report\n")
+        f.write(f"Date: {datetime.now().strftime('%Y-%m-%d %H:%M')}\n\n")
+        f.write(report_content)
+    
+    log_action(f"สร้างรายงานสำเร็จ: {os.path.basename(report_file)}")
+    print(f"  💾 บันทึกรายงาน: {report_file}")
+    return report_content
+
 # ── Submit / Review / Revision ──
 def submit_to_orchestrator():
     todos = load_todo()
@@ -213,9 +251,9 @@ def handle_revisions():
                         status="done", review="", review_note="")
             print(f"  ✅ แก้ #{t['id']} แล้ว — พร้อม submit")
 
-def log_action(action):
+def log_action(action, phase="IMPLEMENTATION"):
     with open(os.path.join(LOGS_DIR,"writer_agent.log"),"a",encoding="utf-8") as f:
-        f.write(f"[{datetime.now():%Y-%m-%d %H:%M:%S}] [Writer] {action}\n")
+        f.write(f"[{datetime.now():%Y-%m-%d %H:%M:%S}] [Writer] [{phase}] {action}\n")
 
 # ── UI ──
 def print_banner():
@@ -248,7 +286,7 @@ def print_menu():
     print("  │  5  │ 🔁 Revision Handling              │")
     print("  │  6  │ 📚 Citation Integration           │")
     print("  ├─────┼───────────────────────────────────┤")
-    print("  │todo │ 📋 ดู TODO list                    │")
+    print("  │todo │ 🛠️ Implementation (TODO List)           │")
     print("  │sub  │ 📤 Submit ให้ผู้บริหาร             │")
     print("  │rev  │ 🔁 งานตีกลับ                      │")
     print("  │role │ 📄 ดู Role ตัวเอง                  │")
@@ -268,10 +306,43 @@ def main(initial_message=""):
         
         print_box("🎭 ROLEPLAY: ✍️ Writer Agent", roleplay_msg, "35")
         
-        print(f"\n  📨 งานจากผู้บริหาร: \"{initial_message[:80]}\"")
-        if input("  ➕ เพิ่มเป็น TODO? [Y/N]: ").strip().upper() in ("Y",""):
-            t=add_todo(initial_message); print(f"  ✅ TODO #{t['id']}")
-            log_action(f"รับงาน: {initial_message[:50]}")
+        # --- Thinking Phase ---
+        print(f"\n  🧠 กำลังวิเคราะห์งาน (Thinking)...")
+        thinking_msg = llm_helper.get_thinking_response("Writer Agent", initial_message, my_role, agent_key="writer")
+        print_box("💭 THINKING: ✍️ Writer Agent", thinking_msg, "35")
+        log_action(f"กระบวนการคิดสำหรับ: {initial_message[:50]}", phase="THINKING")
+
+        # --- Implementation Phase ---
+        print(f"\n  " + "═"*20 + " 🛠️ Implementation Phase " + "═"*20)
+        print(f"  📨 งานที่ได้รับจากผู้บริหาร: \"{initial_message[:80]}\"")
+        
+        is_automated = os.getenv("AUTOMATED") == "1"
+        if is_automated:
+            print("  ➕ [AUTO] เพิ่มเข้าแผนการดำเนินการ (TODO)")
+            auto_add = "Y"
+        else:
+            auto_add = input("  ➕ เพิ่มเข้าแผนการดำเนินการ (TODO)? [Y/N]: ").strip().upper()
+
+        if auto_add in ("Y",""):
+            t=add_todo(clean_description(initial_message))
+            # บันทึก Thinking ลงใน TODO
+            update_todo(t["id"], thinking=thinking_msg)
+            print(f"  ✅ เพิ่มแผนงานสำเร็จ #{t['id']}")
+            log_action(f"เริ่ม Implementation (เพิ่มแผนงาน): {initial_message[:50]}", phase="IMPLEMENTATION")
+            
+            # --- Auto-execution log ---
+            log_action(f"ดำเนินการตามแผนงาน TODO #{t['id']}", phase="IMPLEMENTATION")
+            
+            # --- Reporting Phase ---
+            work_details = f"งานที่ได้รับ: {initial_message}\n"
+            work_details += f"การวิเคราะห์ (Thinking): {thinking_msg}\n"
+            work_details += f"สถานะแผนงาน (Implementation): สร้าง TODO #{t['id']} เรียบร้อย"
+            generate_report(work_details)
+
+    if os.getenv("AUTOMATED") == "1":
+        print("\n✅ [AUTO] งานเสร็จสิ้น — ปิดการทำงาน Agent")
+        return
+
     while True:
         print("\n"+"-"*50)
         try: cmd = input("  ✍️ Writer > ").strip().lower()
@@ -281,6 +352,11 @@ def main(initial_message=""):
         if cmd=="menu": print_menu(); continue
         if cmd=="todo": show_todo(); continue
         if cmd in ("sub","submit"): submit_to_orchestrator(); continue
+        if cmd=="report":
+            todos = load_todo()
+            summary = "\n".join([f"- {t['description']} ({t['status']})" for t in todos[-5:]])
+            generate_report(f"สถานะงานล่าสุด:\n{summary}")
+            continue
         if cmd in ("rev","revision"): handle_revisions(); continue
         if cmd=="role": print("\n"+load_my_role()); continue
         if cmd=="review": orchestrator_review(); continue

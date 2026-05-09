@@ -1,0 +1,16 @@
+
+# Carbon Footprint for Organization (CFO) Research Paper
+
+## Abstract
+This paper discusses the importance of measuring Carbon Footprint for Organization (CFO) in industrial sectors. CFO is a method to evaluate the total greenhouse gas (GHG) emissions caused directly and indirectly by an organization.
+
+## Key Findings
+1. Scope 1: Direct emissions from owned or controlled sources.
+2. Scope 2: Indirect emissions from the generation of purchased energy.
+3. Scope 3: All other indirect emissions that occur in a company’s value chain.
+
+## Methodology
+The study follows the ISO 14064-1 standard and the GHG Protocol.
+
+## Conclusion
+Organizations that implement CFO reporting can better manage their environmental impact and comply with international regulations.

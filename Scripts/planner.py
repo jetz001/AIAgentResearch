@@ -25,11 +25,11 @@ LOGS_DIR = os.path.join(PROJECT_ROOT, "Logs")
 os.makedirs(PLANS_DIR, exist_ok=True)
 os.makedirs(LOGS_DIR, exist_ok=True)
 
-def log_action(action: str):
+def log_action(action: str, phase: str = "IMPLEMENTATION"):
     """บันทึกประวัติลง log"""
     log_file = os.path.join(LOGS_DIR, "orchestrator_agent.log")
     with open(log_file, "a", encoding="utf-8") as f:
-        f.write(f"[{datetime.now():%Y-%m-%d %H:%M:%S}] [ORCHESTRATOR] {action}\n")
+        f.write(f"[{datetime.now():%Y-%m-%d %H:%M:%S}] [ORCHESTRATOR] [{phase}] {action}\n")
 
 # ── Roleplay UI Helpers ──
 def print_box(title, content, color_code="36"): # Default Cyan
@@ -124,6 +124,7 @@ def new_plan(message: str) -> dict:
         "original_message": message,
         "status": "draft",       # draft → approved → in_progress → done
         "tasks": [],
+        "thinking": "",          # บันทึกกระบวนการคิดของผู้บริหาร
         "notes": "",
     }
 
@@ -135,7 +136,9 @@ def new_task(order: int, agent: str, description: str) -> dict:
         "agent": agent,
         "description": description,
         "status": "pending",     # pending → in_progress → done / blocked / skipped
+        "thinking": "",          # บันทึกกระบวนการคิดของ Agent รายตัว
         "result": "",
+        "score": 0,              # 0-5
         "updated": "",
     }
 
@@ -173,9 +176,17 @@ def analyze_and_plan(message: str) -> dict:
 
     for i, (agent, score) in enumerate(sorted_agents, 1):
         kw_list = ", ".join(matched_keywords[agent][:3])
-        desc = f"จัดการเรื่อง: {kw_list} (จากข้อความ user)"
+        # ขยายความคำสั่งด้วย LLM เพื่อให้ลูกน้องเข้าใจงานชัดเจนขึ้น
+        agent_display_name = AGENT_DISPLAY.get(agent, agent)
+        desc = llm_helper.get_expanded_instruction(message, agent_display_name, kw_list)
+        
+        # ป้องกันกรณี LLM คืนค่าว่าง
+        if not desc or "⚠️" in desc:
+            desc = f"จัดการเรื่อง: {kw_list} (จากข้อความ user)"
+            
         plan["tasks"].append(new_task(i, agent, desc))
 
+    log_action(f"สร้างแผนงานเบื้องต้น (Implementation) สำหรับ: {message[:50]}", phase="IMPLEMENTATION")
     return plan
 
 
@@ -208,7 +219,8 @@ def show_plan(plan: dict):
         icon = STATUS_ICON.get(task["status"], "❓")
         agent_name = AGENT_DISPLAY.get(task["agent"], task["agent"])
         desc = task["description"][:28]
-        print(f"  │  {task['order']}  │ {agent_name:<12} │ {desc:<28} │  {icon}  │")
+        score_str = f"[{task.get('score', 0)}/5]" if task["status"] == "done" else "     "
+        print(f"  │  {task['order']}  │ {agent_name:<12} │ {desc:<28} │ {icon} {score_str}│")
 
     print("  └─────┴──────────────┴──────────────────────────────┴──────┘")
 
@@ -307,16 +319,20 @@ def edit_plan(plan: dict) -> dict:
 # ──────────────────────────────────────────────
 # ✅ Approve แผน
 # ──────────────────────────────────────────────
-def approve_plan(plan: dict) -> bool:
+def approve_plan(plan: dict, automated: bool = False) -> bool:
     """ถามผู้บริหารว่า approve แผนนี้หรือไม่"""
     show_plan(plan)
 
-    print("  ─────────────────────────────────")
-    print("  [Y] ✅ Approve — เริ่มกระจายงาน")
-    print("  [E] ✏️  แก้ไขแผนก่อน")
-    print("  [N] ❌ ยกเลิกแผนนี้")
-    print("  ─────────────────────────────────")
-    choice = input("  ผู้บริหาร > ").strip().upper()
+    if not automated:
+        print("  ─────────────────────────────────")
+        print("  [Y] ✅ Approve — เริ่มกระจายงาน")
+        print("  [E] ✏️  แก้ไขแผนก่อน")
+        print("  [N] ❌ ยกเลิกแผนนี้")
+        print("  ─────────────────────────────────")
+        choice = input("  ผู้บริหาร > ").strip().upper()
+    else:
+        print("  ✅ [AUTO] อนุมัติแผนงานอัตโนมัติ")
+        choice = "Y"
 
     if choice == "Y" or choice == "":
         plan["status"] = "approved"
@@ -338,7 +354,7 @@ def approve_plan(plan: dict) -> bool:
         print_box("👔 ORCHESTRATOR", roleplay_msg, "36")
         
         print("\n  ✅ แผนได้รับการอนุมัติ!")
-        log_action("✅ ผู้บริหารอนุมัติแผนงานเรียบร้อย")
+        log_action("✅ ผู้บริหารอนุมัติแผนงานเรียบร้อย", phase="IMPLEMENTATION")
         return True
 
     elif choice == "E":
@@ -391,14 +407,16 @@ def list_plans() -> list[dict]:
 # ──────────────────────────────────────────────
 # 📊 ติดตามงาน (Tracker)
 # ──────────────────────────────────────────────
-def update_task_status(plan: dict, task_order: int, status: str, result: str = ""):
+def update_task_status(plan: dict, task_order: int, status: str, result: str = "", score: int = 0, thinking: str = ""):
     """อัปเดตสถานะ task"""
     for task in plan["tasks"]:
         if task["order"] == task_order:
             task["status"] = status
-            task["result"] = result
+            if result: task["result"] = result
+            if score: task["score"] = score
+            if thinking: task["thinking"] = thinking
             task["updated"] = datetime.now().isoformat()
-            log_action(f"🔄 อัปเดต Task #{task_order} เป็น '{status}' (ผล: {result[:30]})")
+            log_action(f"🔄 อัปเดต Task #{task_order} เป็น '{status}' (คะแนน: {score}, ผล: {result[:30]})")
             break
     # เช็คว่า tasks ทั้งหมดเสร็จหรือยัง
     all_done = all(t["status"] in ("done", "skipped") for t in plan["tasks"])
@@ -439,8 +457,9 @@ def show_tracker():
             for task in plan["tasks"]:
                 icon = STATUS_ICON.get(task["status"], "❓")
                 agent_name = AGENT_DISPLAY.get(task["agent"], task["agent"])
-                print(f"       {icon} #{task['order']} {agent_name}: {task['description'][:35]}")
-                log_action(f"Tracker: {icon} #{task['order']} {agent_name}: {task['description'][:35]}")
+                score_info = f" [Score: {task.get('score',0)}/5]" if task["status"] == "done" else ""
+                print(f"       {icon} #{task['order']} {agent_name}: {task['description'][:35]}{score_info}")
+                log_action(f"Tracker: {icon} #{task['order']} {agent_name}: {task['description'][:35]}{score_info}")
 
     print()
 
@@ -491,10 +510,14 @@ def interactive_tracker():
             continue
 
         result = ""
+        score = 0
         if status == "done":
             result = input("    📝 ผลลัพธ์ (Enter = ข้าม): ").strip()
+            score_input = input("    ⭐ คะแนน (1-5): ").strip()
+            if score_input.isdigit():
+                score = int(score_input)
 
-        update_task_status(plan, order, status, result)
+        update_task_status(plan, order, status, result, score)
         print(f"    ✅ อัปเดต task #{order} → {STATUS_ICON.get(status, '')} {status}")
         show_plan(plan)
 
@@ -504,7 +527,7 @@ def interactive_tracker():
 # ──────────────────────────────────────────────
 # 🔄 Public API (เรียกจาก main.py)
 # ──────────────────────────────────────────────
-def create_and_approve_plan(message: str) -> dict | None:
+def create_and_approve_plan(message: str, automated: bool = False) -> dict | None:
     """
     สร้างแผน → แสดง → ให้ approve → return plan ถ้า approved
     ใช้จาก main.py:
@@ -517,7 +540,7 @@ def create_and_approve_plan(message: str) -> dict | None:
         print("\n  ⚠️  ไม่สามารถวิเคราะห์ข้อความได้ — ไม่พบ keyword ที่จับคู่ agent")
         return None
 
-    if approve_plan(plan):
+    if approve_plan(plan, automated=automated):
         return plan
     return None
 
