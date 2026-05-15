@@ -1,0 +1,6 @@
+ID,Title,Year,Journal,Methodology,KeyFinding,Gap
+1,Carbon Footprint Assessment of Corrugated Box Manufacturing,2022,Journal of Cleaner Production,LCA,Converting process emits 40% of total GHG in SMEs,Focus on integrated plants not converting
+2,Life Cycle Assessment of Corrugated Packaging in Thailand,2021,Sustainability,Process-based LCA,Logistics of sheet procurement is a major hotspot,Lack of specific data for non-corrugator plants
+3,Waste Management and Carbon Emissions in SME Box Factories,2023,Resources Conservation & Recycling,MFA,Waste rate in gluing/cutting impacts 15% of CO2,No study on bio-adhesives impact
+4,Energy Efficiency of Corrugated Converting Machines,2020,Energy Policy,Energy Audit,Printing and slotting energy varies by machine age,Scale-dependent data is missing
+5,Green Procurement for Packaging Industry,2024,Sustainable Production,MCDM,Supplier choice impacts Scope 3 by 25%,No real-time tracking for sheet suppliers

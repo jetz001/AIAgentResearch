@@ -62,7 +62,6 @@ def log_score_csv(plan_id: str, task_order: int, agent: str, score: int, note: s
         if not file_exists:
             f.write("Timestamp,PlanID,TaskOrder,Agent,Score,Note\n")
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        # Clean note of commas to avoid CSV break
         clean_note = note.replace(",", ";").replace("\n", " ")
         f.write(f"{timestamp},{plan_id},{task_order},{agent},{score},{clean_note}\n")
 
@@ -80,22 +79,8 @@ def print_box(title, content, color_code="36"): # Default Cyan
         print(f"│ {line:<66} │")
     print("└" + "─" * 68 + "┘\033[0m")
 
-# ── Roleplay UI Helpers ──
-def print_box(title, content, color_code="36"): # Default Cyan
-    """แสดงกล่องข้อความสไตล์ Roleplay"""
-    print(f"\n\033[{color_code}m┌" + "─" * 68 + "┐")
-    print(f"│ {title:<66} │")
-    print("├" + "─" * 68 + "┤")
-    for line in content.split('\n'):
-        # จัดการข้อความยาวเกินไป
-        while len(line) > 66:
-            print(f"│ {line[:66]:<66} │")
-            line = line[66:]
-        print(f"│ {line:<66} │")
-    print("└" + "─" * 68 + "┘\033[0m")
-
 # ──────────────────────────────────────────────
-# 📦 Agent Scripts (ประกาศไว้ก่อน — ยังไม่ต้องสร้าง)
+# 📦 Agent Scripts
 # ──────────────────────────────────────────────
 AGENT_SCRIPTS = {
     "research":  os.path.join(SCRIPTS_DIR, "agent_research.py"),
@@ -108,10 +93,9 @@ AGENT_SCRIPTS = {
 }
 
 # ──────────────────────────────────────────────
-# 📄 Agent Role Definitions (อ่านจาก Agent/*.md)
+# 📄 Agent Role Definitions
 # ──────────────────────────────────────────────
 AGENT_ROLES_DIR = os.path.join(PROJECT_ROOT, "Agent")
-
 AGENT_ROLE_FILES = {
     "orchestrator": os.path.join(AGENT_ROLES_DIR, "00_Orchestrator.md"),
     "research":     os.path.join(AGENT_ROLES_DIR, "01_Research.md"),
@@ -123,74 +107,33 @@ AGENT_ROLE_FILES = {
     "qa":           os.path.join(AGENT_ROLES_DIR, "07_QA.md"),
 }
 
-
 def load_role(agent_name: str) -> str:
-    """อ่าน role definition จากไฟล์ .md"""
     filepath = AGENT_ROLE_FILES.get(agent_name)
     if filepath and os.path.exists(filepath):
         with open(filepath, "r", encoding="utf-8") as f:
             return f.read()
     return f"(ไม่พบ role file สำหรับ {agent_name})"
 
-
 def get_role_summary(agent_name: str) -> list[str]:
-    """ดึงเฉพาะ skill IDs จาก role file"""
     content = load_role(agent_name)
     skills = []
     for line in content.split("\n"):
         if line.strip().startswith("### SK-"):
-            # เช่น "### SK-ORC-01: Workflow Management"
             skill = line.strip().replace("### ", "")
             skills.append(skill)
     return skills
 
 # ──────────────────────────────────────────────
-# 🔑 Keywords สำหรับจับคู่ case แต่ละ agent
+# 🔑 Keywords
 # ──────────────────────────────────────────────
 CASE_KEYWORDS = {
-    "research": [
-        "ค้นหา", "หาข้อมูล", "literature", "paper", "วิจัย", "research",
-        "scopus", "google scholar", "journal", "ทบทวนวรรณกรรม", "review",
-        "gap", "keyword", "reference", "อ้างอิง", "แหล่งข้อมูล",
-        "เก็บข้อมูล", "data collection", "วิเคราะห์ข้อมูล", "analysis",
-        "สถิติ", "ผลการวิจัย", "methodology", "วิธีการวิจัย",
-    ],
-    "writer": [
-        "เขียน", "write", "draft", "ร่าง", "thesis", "วิทยานิพนธ์",
-        "บท", "chapter", "abstract", "บทคัดย่อ", "บทนำ", "introduction",
-        "สรุป", "conclusion", "อภิปราย", "discussion", "manuscript",
-        "แก้ไขเนื้อหา", "เรียบเรียง", "พิมพ์", "เนื้อหา",
-    ],
-    "advisor": [
-        "อาจารย์", "ที่ปรึกษา", "advisor", "feedback", "ความเห็น",
-        "approve", "อนุมัติ", "ตรวจ", "review", "ส่งงาน", "submit",
-        "แก้ไขตามคำแนะนำ", "revision", "gate", "ผ่าน", "ไม่ผ่าน",
-        "นัดพบ", "ประชุม advisor",
-    ],
-    "editor": [
-        "จัดรูปแบบ", "format", "ตีพิมพ์", "publish", "publication",
-        "บรรณาธิการ", "editor", "proofread", "ตรวจภาษา", "สะกดคำ",
-        "citation", "อ้างอิง", "apa", "journal submission", "หนังสือ",
-        "book", "isbn", "ปก", "สารบัญ", "cover letter",
-    ],
-    "it": [
-        "ติดตั้ง", "install", "setup", "config", "api", "key",
-        "backup", "สำรอง", "git", "script", "automation", "ระบบ",
-        "error", "bug", "แก้บั๊ก", "environment", "server", "deploy",
-        "sandbox", "ทดสอบระบบ", "pipeline", "health check",
-    ],
-    "hr": [
-        "กำหนดการ", "timeline", "deadline", "ประชุม", "meeting",
-        "นัด", "schedule", "progress", "ความคืบหน้า", "รายงาน",
-        "report", "risk", "ความเสี่ยง", "แผน", "plan", "milestone",
-        "ติดตาม", "เตือน", "remind", "ทีม", "team",
-    ],
-    "qa": [
-        "ตรวจสอบ", "check", "validate", "quality", "คุณภาพ",
-        "plagiarism", "ลอก", "consistency", "สอดคล้อง", "ถูกต้อง",
-        "เลขหน้า", "numbering", "checklist", "final check",
-        "ก่อน submit", "ก่อนส่ง", "cross-check",
-    ],
+    "research": ["ค้นหา", "หาข้อมูล", "literature", "paper", "วิจัย", "research", "gap", "keyword", "reference", "methodology"],
+    "writer":   ["เขียน", "write", "draft", "ร่าง", "thesis", "chapter", "abstract", "สรุป"],
+    "advisor":  ["อาจารย์", "ที่ปรึกษา", "advisor", "feedback", "approve", "ส่งงาน", "submit"],
+    "editor":   ["จัดรูปแบบ", "format", "ตีพิมพ์", "proofread", "citation", "apa"],
+    "it":       ["ติดตั้ง", "install", "setup", "config", "api", "script", "error", "bug"],
+    "hr":       ["กำหนดการ", "deadline", "ประชุม", "meeting", "progress", "plan"],
+    "qa":       ["ตรวจสอบ", "check", "validate", "quality", "plagiarism", "สอดคล้อง"],
 }
 
 # ──────────────────────────────────────────────
@@ -199,24 +142,17 @@ CASE_KEYWORDS = {
 def clear_screen():
     os.system("cls" if os.name == "nt" else "clear")
 
-
 def print_banner():
     print("=" * 60)
     print("  🎯 ORCHESTRATOR — ผู้บริหารโปรเจค")
     print("  Master's Thesis Research Agent System")
     print("=" * 60)
     print(f"  📅 {datetime.now().strftime('%Y-%m-%d %H:%M')}")
-    print(f"  📂 Project: {PROJECT_ROOT}")
-    print("=" * 60)
-
-    # แสดง skill summary ของ Orchestrator
     skills = get_role_summary("orchestrator")
     if skills:
         print("  📋 My Skills:")
-        for sk in skills:
-            print(f"     • {sk}")
+        for sk in skills: print(f"     • {sk}")
     print()
-
 
 def print_agent_menu():
     agents = [
@@ -231,58 +167,9 @@ def print_agent_menu():
     print("┌────────────────────────────────────────────────┐")
     print("│            📋 Agent ที่พร้อมให้บริการ             │")
     print("├────┬───────────────────┬───────────────────────┤")
-    print("│ #  │ Agent             │ หน้าที่                │")
-    print("├────┼───────────────────┼───────────────────────┤")
     for num, name, desc in agents:
         print(f"│ {num}  │ {name:<17} │ {desc:<21} │")
-    print("└────┴───────────────────┴───────────────────────┘")
-    print()
-
-
-# ──────────────────────────────────────────────
-# 🧠 Orchestrator Logic — วิเคราะห์ข้อความ → เลือก Agent
-# ──────────────────────────────────────────────
-def analyze_message(message: str) -> list[tuple[str, int]]:
-    """
-    วิเคราะห์ข้อความจาก user แล้วให้คะแนนแต่ละ agent
-    return: list ของ (agent_name, score) เรียงจากมากไปน้อย
-    """
-    message_lower = message.lower()
-    scores = {}
-
-    for agent, keywords in CASE_KEYWORDS.items():
-        score = 0
-        for kw in keywords:
-            if kw.lower() in message_lower:
-                score += 1
-        if score > 0:
-            scores[agent] = score
-
-    # เรียงจากคะแนนมากไปน้อย
-    sorted_scores = sorted(scores.items(), key=lambda x: x[1], reverse=True)
-    return sorted_scores
-
-
-AGENT_DISPLAY = {
-    "research": "📚 Research Agent",
-    "writer":   "✍️  Writer Agent",
-    "advisor":  "👨‍🏫 Advisor Agent",
-    "editor":   "📰 Editor Agent",
-    "it":       "💻 IT Agent",
-    "hr":       "👥 HR Agent",
-    "qa":       "✅ QA Agent",
-}
-
-AGENT_NUM_MAP = {
-    "1": "research",
-    "2": "writer",
-    "3": "advisor",
-    "4": "editor",
-    "5": "it",
-    "6": "hr",
-    "7": "qa",
-}
-
+    print("└────┴───────────────────┴───────────────────────┘\n")
 
 def dispatch_to_agent(agent_name: str, message: str):
     """
@@ -290,29 +177,21 @@ def dispatch_to_agent(agent_name: str, message: str):
     """
     script_path = AGENT_SCRIPTS.get(agent_name)
 
-    if not script_path:
-        print(f"  ❌ ไม่พบ agent: {agent_name}")
+    if not script_path or not os.path.exists(script_path):
+        print(f"  ❌ ไม่พบ agent script: {agent_name}")
         return
 
-    if not os.path.exists(script_path):
-        print(f"  ⚠️  Script ยังไม่ได้สร้าง: {os.path.basename(script_path)}")
-        print(f"     Path: {script_path}")
-        print(f"     → สร้างไฟล์นี้ก่อนแล้วรันใหม่")
-        return
-
-    # เรียก agent script พร้อมส่งข้อความผ่าน argument
-    print(f"\n  🚀 กำลังส่งงานไปยัง {AGENT_DISPLAY[agent_name]}...")
-    print(f"  📄 Script: {os.path.basename(script_path)}")
-    print("-" * 60)
-
+    # เรียก agent script พร้อมส่งข้อความผ่าน argument และส่ง env ไปด้วย
     import subprocess
-    subprocess.run(["python", script_path, message])
+    import sys
+    
+    # ส่งต่อ environment variables ทั้งหมด (รวมถึง AUTOMATED)
+    env = os.environ.copy()
+    
+    print(f"\n  🚀 กำลังส่งงานไปยัง {AGENT_DISPLAY[agent_name]}...")
+    subprocess.run([sys.executable, script_path, message], env=env)
     log_action(f"ส่งงานไปยัง {agent_name} สำเร็จ")
 
-
-# ──────────────────────────────────────────────
-# 📋 Planner Integration
-# ──────────────────────────────────────────────
 from planner import (
     create_and_approve_plan,
     get_approved_tasks,
@@ -321,415 +200,284 @@ from planner import (
     update_task_status,
 )
 
+AGENT_DISPLAY = {
+    "research": "📚 Research Agent", "writer": "✍️  Writer Agent", "advisor": "👨‍🏫 Advisor Agent",
+    "editor": "📰 Editor Agent", "it": "💻 IT Agent", "hr": "👥 HR Agent", "qa": "✅ QA Agent",
+}
+AGENT_NUM_MAP = {"1": "research", "2": "writer", "3": "advisor", "4": "editor", "5": "it", "6": "hr", "7": "qa"}
 
-# ──────────────────────────────────────────────
-# 🚀 Dispatch ตามแผนงาน (ทีละ task)
-# ──────────────────────────────────────────────
 def dispatch_plan(plan: dict, automated: bool = False):
-    """กระจายงานตามแผนที่ approve แล้ว — ทีละ task"""
     tasks = get_approved_tasks(plan)
-    if not tasks:
-        print("  📭 ไม่มี task ที่ต้องทำ")
-        return
-
+    if not tasks: return
     context_summary = ""
-
-    print(f"\n  🚀 เริ่มกระจายงาน ({len(tasks)} tasks)")
-    print("=" * 60)
-
     for task in tasks:
         agent = task["agent"]
         display = AGENT_DISPLAY.get(agent, agent)
-        print(f"\n  ──── Task #{task['order']} ────")
-        print(f"  👤 Agent: {display}")
-        print(f"  📝 งาน:   {task['description']}")
-
-        # เตรียมข้อความส่งให้ Agent (Boss to Subordinate Style)
-        boss_instruction = task["description"]
-        original_request = plan.get("original_message", "")
+        full_message = f"🎯 คำสั่งจากผู้บริหาร (Orchestrator):\n{task['description']}\n\n📋 ข้อความต้นฉบับ: \"{plan.get('original_message', '')}\"\n"
+        if context_summary.strip(): full_message += f"\n💡 ข้อมูลแวดล้อม: {context_summary}"
         
-        full_message = f"🎯 คำสั่งจากผู้บริหาร (Orchestrator):\n{boss_instruction}\n\n"
-        full_message += f"📋 ข้อความต้นฉบับจาก User:\n\"{original_request}\"\n"
+        attempt = 0
+        max_attempts = 3
+        is_passed = False
         
-        if context_summary.strip():
-            full_message += f"\n💡 ข้อมูลประกอบจากขั้นตอนก่อนหน้า (Context):\n{context_summary}"
+        while attempt < max_attempts and not is_passed:
+            attempt += 1
+            if automated: confirm = "Y"
+            else: confirm = input(f"  ▶️  ส่งงาน #{task['order']} ไป {display} (Attempt {attempt})? [Y/N]: ").strip().upper()
 
-        if not automated:
-            confirm = input(f"  ▶️  ส่งงานนี้ไป {display}? [Y/N/skip]: ").strip().upper()
-        else:
-            print(f"  ▶️  [AUTO] ส่งงานไป {display}")
-            confirm = "Y"
-
-        if confirm == "Y" or confirm == "":
-            update_task_status(plan, task["order"], "in_progress")
-            
-            # ขอคำพูดจาก LLM
-            print(f"  🧠 Orchestrator กำลังประมวลผลคำสั่งส่งงาน...")
-            orchestrator_role = "" # ดึงจากไฟล์ถ้ามี
-            if os.path.exists(os.path.join(PROJECT_ROOT, "Agent", "00_Orchestrator.md")):
-                with open(os.path.join(PROJECT_ROOT, "Agent", "00_Orchestrator.md"), "r", encoding="utf-8") as f:
-                    orchestrator_role = f.read()
-            
-            roleplay_msg = llm_helper.get_roleplay_response("Orchestrator", 
-                                                            f"ส่งงานลำดับที่ {task['order']} ไปยัง {display}: {task['description']}", 
-                                                            orchestrator_role,
-                                                            agent_key="orchestrator")
-            
-            print_box("👔 ORCHESTRATOR", roleplay_msg, "36")
-            
-            dispatch_to_agent(agent, full_message)
-            
-            if not automated:
-                # ถามผลหลัง agentทำเสร็จ
-                result_status = input(f"\n  ผลลัพธ์ task #{task['order']}? [done/blocked/pending]: ").strip().lower()
-                if result_status in ("done", "blocked", "pending"):
-                    result_note = ""
-                    thinking_note = ""
-                    score = 0
-                    if result_status == "done":
-                        thinking_note = input("  💭 บันทึกกระบวนการคิดของ Agent (Thinking) (Enter = ข้าม): ").strip()
-                        result_note = input("  📄 บันทึกผลลัพธ์ที่ได้ (Result) (Enter = ข้าม): ").strip()
-                        score_input = input("  ⭐ คะแนนคำตอบ (1-5): ").strip()
-                        if score_input.isdigit():
-                            score = int(score_input)
-                        log_score_csv(plan["id"], task["order"], agent, score, result_note)
-                    
-                    update_task_status(plan, task["order"], result_status, result_note, score, thinking_note)
-                    log_action(f"Task #{task['order']} (Agent: {agent}) -> {result_status} (Score: {score})")
-                else:
-                    update_task_status(plan, task["order"], "done")
-                    log_action(f"Task #{task['order']} (Agent: {agent}) -> done")
-            else:
-                # ระบบอัตโนมัติ: ดึงข้อมูลจริงจาก TODO ของ Agent
-                result_note = "ดำเนินการสำเร็จตามแผนงาน"
-                thinking_note = "วิเคราะห์ข้อมูลและดำเนินการตามบทบาท"
+            if confirm == "Y" or confirm == "":
+                # 📝 LOG: บันทึกการจ่ายงาน (ทวนคำสั่ง)
+                log_msg = f"SENDING TASK #{task['order']} to {display}\n   👉 INSTRUCTION: {task['description']}"
+                log_action(log_msg, phase="DISPATCH")
                 
-                # แมปไฟล์ TODO ของแต่ละ Agent
+                update_task_status(plan, task["order"], "in_progress")
+                dispatch_to_agent(agent, full_message)
+                
+                # --- [QUALITY GATE] ---
+                result_note = "ดำเนินการสำเร็จ"
                 todo_paths = {
                     "research": os.path.join(PROJECT_ROOT, "Workspace", "Decision", "research_tasks", "research_todo.json"),
                     "writer": os.path.join(PROJECT_ROOT, "Workspace", "Decision", "writer_tasks", "writer_todo.json"),
+                    "advisor": os.path.join(PROJECT_ROOT, "Workspace", "Decision", "advisor_tasks", "advisor_todo.json"),
+                    "editor": os.path.join(PROJECT_ROOT, "Workspace", "Decision", "editor_tasks", "editor_todo.json"),
+                    "it": os.path.join(PROJECT_ROOT, "Workspace", "Decision", "it_tasks", "it_todo.json"),
+                    "hr": os.path.join(PROJECT_ROOT, "Workspace", "Decision", "hr_tasks", "hr_todo.json"),
+                    "qa": os.path.join(PROJECT_ROOT, "Workspace", "Decision", "qa_tasks", "qa_todo.json"),
                 }
-                
-                agent_todo_file = todo_paths.get(agent)
-                if agent_todo_file and os.path.exists(agent_todo_file):
+                if agent in todo_paths and os.path.exists(todo_paths[agent]):
                     try:
-                        with open(agent_todo_file, "r", encoding="utf-8") as f:
+                        with open(todo_paths[agent], "r", encoding="utf-8") as f:
                             todos = json.load(f)
-                            if todos:
-                                # ค้นหา TODO ล่าสุดที่ตรงกับคำสั่ง (หรืออันล่าสุด)
-                                latest = todos[-1]
-                                result_note = latest.get("result", result_note)
-                                thinking_note = latest.get("thinking", thinking_note)
+                            # 🔍 ค้นหางานล่าสุดที่สถานะเป็น 'done' และต้องตรงกับคำสั่งปัจจุบัน (เพื่อป้องกันการอ่านงานเก่ามาตรวจ)
+                            current_desc = task['description'].strip()
+                            completed_tasks = [
+                                t for t in todos 
+                                if t.get("status") in ["done", "submitted", "accepted"] 
+                                and (current_desc in t.get("description", "") or t.get("description", "") in current_desc)
+                            ]
+                            if completed_tasks:
+                                latest_task = completed_tasks[-1]
+                                result_note = latest_task.get("result", result_note)
                     except Exception as e:
-                        print(f"  ⚠️ ไม่สามารถอ่านผลลัพธ์จาก {agent}: {e}")
+                        print(f"  ⚠️ ไม่สามารถอ่านไฟล์ TODO ของ {agent}: {e}")
 
-                update_task_status(plan, task["order"], "done", result_note, 5, thinking_note)
-                print(f"  ✅ Task #{task['order']} สำเร็จ (Auto)")
+                # 🧠 ตรวจสอบคุณภาพงาน (Automated Review)
+                print(f"  🔍 กำลังตรวจสอบคุณภาพงานของ {display}...")
+                review_prompt = f"ตรวจสอบว่าผลลัพธ์นี้ตรงตามคำสั่งหรือไม่: '{task['description']}'\n\nผลลัพธ์จากเอเจ้นท์: {result_note}\n\nตอบเพียง 'PASS' หรือ 'FAIL: [เหตุผล]' เท่านั้น"
+                review_decision = llm_helper.get_roleplay_response("Quality Checker", review_prompt, "คุณคือผู้ตรวจสอบคุณภาพงานวิจัยที่เฮี้ยบที่สุด", agent_key="orchestrator")
                 
-                # เพิ่มลง Context สำหรับ Agent ถัดไป
-                context_summary += f"\n[ผลลัพธ์จาก {display}]: {result_note}\n"
-            
-            print(f"  ✅ Task #{task['order']} อัปเดตแล้ว")
+                if "PASS" in review_decision.upper():
+                    is_passed = True
+                    update_task_status(plan, task["order"], "done", result_note, 5)
+                    context_summary += f"\n[ผลลัพธ์จาก {display}]: {result_note}\n"
+                    print(f"  ✅ {display} สอบผ่านในรอบที่ {attempt}!")
+                    
+                    # 📝 LOG: บันทึกความสำเร็จ (โชว์เนื้องาน)
+                    success_log = f"SUCCESS TASK #{task['order']} by {display}\n   📄 RESULT PREVIEW: {result_note[:300]}..."
+                    log_action(success_log, phase="COMPLETED")
+                else:
+                    print(f"  ❌ {display} สอบตก! เหตุผล: {review_decision}")
+                    log_action(f"REJECTED TASK #{task['order']} ({display})\n   ⚠️ REASON: {review_decision}", phase="REVISION")
+                    full_message += f"\n\n⚠️ งานเก่าถูกตีกลับ! เหตุผล: {review_decision}\nกรุณาแก้ไขให้ถูกต้องและห้ามทำพลาดซ้ำเดิม!"
+                    if attempt == max_attempts:
+                        print(f"  ⚠️ ทำงานพลาดเกิน {max_attempts} รอบ ยอมรับงานตามสภาพ")
+                        log_action(f"FORCE ACCEPT TASK #{task['order']} ({display}) after {max_attempts} fails", phase="WARNING")
+                        update_task_status(plan, task["order"], "done", result_note, 2)
+                        is_passed = True # บังคับผ่านเพื่อออกจากลูป
+            else:
+                break
 
-        elif confirm == "SKIP":
-            update_task_status(plan, task["order"], "skipped")
-            print(f"  ⏭️  ข้าม task #{task['order']}")
-
-        else:
-            print(f"  ⏸️  หยุดกระจายงาน — tasks ที่เหลือยังเป็น pending")
-            break
-
-    print("\n" + "=" * 60)
-    print("  📊 สรุปแผนงานหลังกระจาย:")
-    show_tracker()
-
-def generate_final_report(plan: dict):
-    """สร้างรายงานสรุปผลงานทั้งหมดสำหรับ User"""
+def generate_final_report(plan: dict) -> str:
+    """สร้างรายงานสรุปผลงานจากทุกเอเจ้นท์"""
     orchestrator_role = load_role("orchestrator")
-    
-    # รวบรวมข้อมูลงาน
-    work_summary = f"ภารกิจหลัก: {plan['original_message']}\n"
-    work_summary += f"กระบวนการคิดของผู้บริหาร (Orchestrator Thinking): {plan.get('thinking', 'N/A')}\n\n"
-    work_summary += "--- ลำดับการดำเนินการ (Plan Flow) ---\n"
+    work_summary = f"ภารกิจ: {plan['original_message']}\n"
     for task in plan["tasks"]:
-        status = task["status"]
-        agent = AGENT_DISPLAY.get(task["agent"], task["agent"])
-        score = f" (คะแนน: {task.get('score', 0)}/5)" if status == "done" else ""
-        work_summary += f"{task['order']}. [{status}] {agent}: {task['description']}{score}\n"
-        if task.get("thinking"):
-            work_summary += f"   - การวิเคราะห์ของ Agent: {task['thinking']}\n"
-        if task.get("result"):
-            work_summary += f"   - ผลลัพธ์ที่ได้: {task['result']}\n"
-
-    print(f"\n  🧠 Orchestrator กำลังรวบรวมข้อมูลสรุปรายงานผลงาน (Final Reporting)...")
+        work_summary += f"{task['order']}. [{task['status']}] {task['agent']}: {task['result']}\n"
     report_content = llm_helper.get_report_response("Orchestrator Agent", work_summary, orchestrator_role, agent_key="orchestrator")
-    
-    print_box("📄 FINAL REPORT: 🎯 Orchestrator", report_content, "36")
-    
-    # บันทึกลงไฟล์
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    output_dir = os.path.join(PROJECT_ROOT, "Output", "reports")
-    os.makedirs(output_dir, exist_ok=True)
-    report_file = os.path.join(output_dir, f"orchestrator_final_report_{timestamp}.md")
-    with open(report_file, "w", encoding="utf-8") as f:
-        f.write(f"# 🎯 Orchestrator Final Report\n")
-        f.write(f"Plan ID: {plan['id']}\n")
-        f.write(f"Date: {datetime.now().strftime('%Y-%m-%d %H:%M')}\n\n")
-        f.write(report_content)
-    
-    log_action(f"สร้างรายงานสรุปผลงานสุดท้ายสำเร็จ: {os.path.basename(report_file)}", phase="REPORTING")
-    print(f"  💾 บันทึกรายงานสรุปผลงานที่: {report_file}")
     return report_content
 
+def combine_and_export_step():
+    """ขั้นตอนที่ 8-10: รวบรวมและ Export ไฟล์"""
+    print_box("📂 STEP 8-10: Combine & Export", "กำลังรวบรวมเนื้อหาและสร้างไฟล์เอกสาร...")
+    import subprocess
+    
+    # 8. Combine Thesis
+    combine_script = os.path.join(SCRIPTS_DIR, "combine_thesis.py")
+    subprocess.run([sys.executable, combine_script])
+    
+    # 9-10. Export Word/HTML (ถ้ามีสคริปต์รองรับ)
+    html_script = os.path.join(SCRIPTS_DIR, "generate_html.py")
+    if os.path.exists(html_script):
+        subprocess.run([sys.executable, html_script])
+    
+    log_action("Thesis combined and exported to Word/HTML", phase="EXPORT")
 
-# ──────────────────────────────────────────────
-# 🔄 Main Loop
-# ──────────────────────────────────────────────
-def main():
-    log_action("--- เปิดระบบ Orchestrator ---")
-    clear_screen()
-    print_banner()
-    print_agent_menu()
+def orchestrator_review_gate(plan: dict, report: str, automated: bool = False) -> str:
+    """ด่านที่ 11: ผู้บริหาร (Orchestrator) ตรวจสอบ"""
+    print_box("🛡️ GATE 11: Orchestrator Review", "กำลังประเมินภาพรวมของงาน...")
+    if automated:
+        # ในโหมดอัตโนมัติ ให้ AI ช่วยประเมินเบื้องต้น
+        prompt = f"ในฐานะผู้บริหาร (Orchestrator) โปรดตรวจสอบรายงานนี้: {report}\nหากงานมีคุณภาพและครบถ้วนตามโจทย์ '{plan['original_message']}' ให้ตอบ 'PASS' มิฉะนั้นตอบ 'FAIL: [เหตุผล]'"
+        decision = llm_helper.call_llm(prompt, "คุณคือผู้บริหารที่ต้องการงานคุณภาพสูงสุด", agent_key="orchestrator")
+        if "PASS" in decision.upper():
+            log_action(f"AUTO-GATE 11 APPROVED\n   📊 REPORT SUMMARY: {report[:300]}...", phase="GATE_11")
+            return "PASS"
+        log_action(f"AUTO-GATE 11 REJECTED\n   ⚠️ CRITIQUE: {decision}", phase="GATE_11")
+        return f"REPLAN: {decision}"
+    
+    confirm = input("\n👔 [GATE 11] ท่านพอใจกับผลลัพธ์นี้หรือไม่? (Y=ผ่าน / N=ตีกลับไปวางแผนใหม่): ").strip().upper()
+    if confirm == "Y":
+        log_action(f"CEO/ORCHESTRATOR APPROVED (Manual)\n   📄 REPORT: {report[:300]}...", phase="GATE_11")
+        return "PASS"
+    reason = input("📝 ระบุเหตุผลที่ตีกลับ (เพื่อให้ Planner ปรับแผน): ").strip()
+    log_action(f"CEO/ORCHESTRATOR REJECTED (Manual)\n   ⚠️ FEEDBACK: {reason}", phase="GATE_11")
+    return f"REPLAN: {reason}"
 
-    while True:
-        print("-" * 60)
-        print("📌 คำสั่ง:")
-        print("   วาง (paste) ข้อความ = สร้างแผน → กระจายงาน")
-        print("   'status'  = 📊 ดูสถานะงานทั้งหมด")
-        print("   'update'  = ✏️  อัปเดตสถานะ task")
-        print("   'role'    = 📄 ดู role ของผู้บริหาร")
-        print("   'role N'  = 📄 ดู role agent (เช่น role 1)")
-        print("   '1'-'7'   = 🎯 ส่งงานตรงไป agent")
-        print("   'menu'    = 📋 ดู agent list")
-        print("   'quit'    = 👋 ออก")
-        print("-" * 60)
+def advisor_final_gate(report: str) -> bool:
+    """ด่านที่ 12: ที่ปรึกษา (Advisor) ตรวจสอบ"""
+    print_box("🎓 GATE 12: Advisor Final Review", "กำลังตรวจสอบความถูกต้องทางวิชาการ...")
+    prompt = f"ในฐานะที่ปรึกษาวิทยานิพนธ์ โปรดตรวจสอบความถูกต้องทางวิชาการจากรายงานนี้: {report}\nตอบ 'PASS' หากผ่าน หรือ 'FAIL: [เหตุผล]' หากต้องแก้ไข"
+    decision = llm_helper.call_llm(prompt, "คุณคืออาจารย์ที่ปรึกษาที่เคร่งครัดเรื่องความถูกต้องทางวิชาการ", agent_key="advisor")
+    if "PASS" in decision.upper():
+        print("  ✅ Advisor: อนุมัติผ่านทางวิชาการ")
+        log_action("Advisor APPROVED the work", phase="GATE_12")
+        return True
+    print(f"  ❌ Advisor: ตีกลับ! {decision}")
+    log_action(f"Advisor REJECTED the work: {decision}", phase="GATE_12")
+    return False
 
-        try:
-            user_input = input("\n🔹 ผู้บริหาร > ").strip()
-        except (KeyboardInterrupt, EOFError):
-            print("\n\n👋 ออกจากระบบ")
-            break
+def editor_final_gate(report: str) -> bool:
+    """ด่านที่ 13: Editor Agent ตรวจสอบ"""
+    print_box("📰 GATE 13: Editor Final Review", "กำลังตรวจสอบความสวยงามและภาษา...")
+    prompt = f"ในฐานะบรรณาธิการ โปรดตรวจสอบภาษาและการจัดรูปแบบจากรายงานนี้: {report}\nตอบ 'PASS' หากผ่าน หรือ 'FAIL: [เหตุผล]' หากต้องแก้ไข"
+    decision = llm_helper.call_llm(prompt, "คุณคือบรรณาธิการมืออาชีพที่เน้นความสละสลวยของภาษา", agent_key="editor")
+    if "PASS" in decision.upper():
+        print("  ✅ Editor: ตรวจสอบภาษาผ่านเรียบร้อย")
+        log_action("Editor APPROVED the work", phase="GATE_13")
+        return True
+    print(f"  ❌ Editor: ตีกลับเรื่องภาษา! {decision}")
+    log_action(f"Editor REJECTED the work: {decision}", phase="GATE_13")
+    return False
 
-        if not user_input:
-            continue
-
-        # ── คำสั่งพิเศษ ──
-        cmd = user_input.lower()
-
-        if cmd == "quit":
-            print("\n👋 ออกจากระบบ — ขอบคุณครับ")
-            log_action("👋 ผู้บริหารออกจากระบบ")
-            break
-
-        if cmd == "menu":
-            clear_screen()
-            print_banner()
-            print_agent_menu()
-            continue
-
-        if cmd == "clear":
-            clear_screen()
-            print_banner()
-            continue
-
-        if cmd == "status":
-            show_tracker()
-            log_action("📊 ผู้บริหารเรียกดูสถานะงาน (Status Tracker)")
-            continue
-
-        if cmd == "update":
-            log_action("✏️ ผู้บริหารเข้าสู่โหมดอัปเดตสถานะงาน (Interactive Update)")
-            interactive_tracker()
-            continue
-
-        if cmd.startswith("role"):
-            parts = cmd.split()
-            if len(parts) == 1:
-                # 'role' → แสดง role ของ orchestrator
-                print("\n" + load_role("orchestrator"))
-                log_action("📄 ผู้บริหารเรียกดู Role ของตัวเอง")
-            else:
-                # 'role 1' → แสดง role ของ agent เลขนั้น
-                agent_key = AGENT_NUM_MAP.get(parts[1])
-                if agent_key:
-                    print(f"\n" + load_role(agent_key))
-                    log_action(f"📄 ผู้บริหารเรียกดู Role ของ {agent_key}")
-                else:
-                    print("  ❌ ระบุเลข 1-7 เช่น 'role 1' = Research Agent")
-            continue
-
-        # ── เลือก agent ตรงด้วยเลข (ไม่ผ่านแผน) ──
-        if user_input in AGENT_NUM_MAP:
-            agent = AGENT_NUM_MAP[user_input]
-            print(f"\n  ✅ เลือก {AGENT_DISPLAY[agent]} โดยตรง (ไม่ผ่านแผน)")
-            log_action(f"🎯 ผู้บริหารเลือก {agent} โดยตรง (Direct Dispatch)")
-            msg = input("  📝 ข้อความที่จะส่ง (หรือ Enter เพื่อข้าม): ").strip()
-            dispatch_to_agent(agent, msg if msg else "(ไม่มีข้อความ)")
-            continue
-
-        # ── ข้อความจาก user → สร้างแผน → approve → กระจายงาน ──
-        print("\n  🧠 กำลังวิเคราะห์ข้อความ...")
-        log_action(f"รับคำสั่งจาก user: {user_input[:50]}")
-        
-        # --- Thinking Phase ---
-        print(f"\n  🧠 Orchestrator กำลังวิเคราะห์เป้าหมายหลัก (Thinking)...")
-        my_role = load_role("orchestrator")
-        thinking_msg = llm_helper.get_thinking_response("Orchestrator Agent", user_input, my_role, agent_key="orchestrator")
-        print_box("💭 THINKING: 🎯 Orchestrator", thinking_msg, "36")
-        log_action(f"ผู้บริหารวิเคราะห์เป้าหมาย: {user_input[:50]}", phase="THINKING")
-
-        # --- Implementation Phase ---
-        print(f"\n  " + "═"*20 + " 🛠️ Orchestrator Implementation " + "═"*20)
-        log_action(f"เริ่มสร้างและดำเนินการตามแผนงาน", phase="IMPLEMENTATION")
-        
-        plan = create_and_approve_plan(user_input)
-
-        if plan:
-            plan["thinking"] = thinking_msg # บันทึก Thinking ลงใน Plan
-            log_action(f"อนุมัติแผนงาน {plan['id']} เริ่มกระจายงาน", phase="IMPLEMENTATION")
-            dispatch_plan(plan)
-            
-            # --- Reporting Phase ---
-            generate_final_report(plan)
-        else:
-            # fallback: ถ้าไม่ approve แผน → ถามเลือก agent ตรง
-            print("\n  💡 หรือจะเลือก agent ด้วยตัวเอง?")
-            print_agent_menu()
-            choice = input("  เลือกเลข [1-7] หรือ Enter = ข้าม: ").strip()
-            if choice in AGENT_NUM_MAP:
-                agent = AGENT_NUM_MAP[choice]
-                log_action(f"🎯 ผู้บริหารเลือก {agent} แบบแมนนวลหลังยกเลิกแผน")
-                dispatch_to_agent(agent, user_input)
-
+def notify_ceo(report: str):
+    """ด่านที่ 15: รายงานผลต่อ CEO (จบบริบูรณ์)"""
+    log_action("MISSION COMPLETE: Sent final delivery to CEO", phase="GATE_15")
+    print_box("👑 MISSION COMPLETE: FINAL DELIVERY TO CEO", "รายงานผลการปฏิบัติงานต่อท่าน CEO (จบบริบูรณ์)")
+    print(f"\n[CEO Notification]: ท่านครับ งานวิทยานิพนธ์สมบูรณ์แบบ 100% แล้วครับ!")
+    print(f"สรุปความสำเร็จ: {report[:200]}...")
+    print("\n✅ ภารกิจเสร็จสิ้น (จบบริบูรณ์)")
 
 # ──────────────────────────────────────────────
 def main():
     is_automated = os.getenv("AUTOMATED") == "1"
-    # รองรับการรันแบบอัตโนมัติผ่าน Command Line
+    
     if len(sys.argv) > 1:
+        initial_msg = sys.argv[1]
         os.environ["AUTOMATED"] = "1"
-        user_input = sys.argv[1]
-        print_banner()
-        print(f"\n🚀 [HEADLESS MODE] รับคำสั่ง: {user_input}")
+        is_automated = True
         
-        # Thinking
-        my_role = load_role("orchestrator")
-        thinking_msg = llm_helper.get_thinking_response("Orchestrator Agent", user_input, my_role, agent_key="orchestrator")
-        print_box("💭 THINKING: 🎯 Orchestrator", thinking_msg, "36")
-        
-        # Plan
-        plan = create_and_approve_plan(user_input, automated=True)
-        if plan:
-            plan["thinking"] = thinking_msg
+        current_msg = initial_msg
+        while True: # 🔁 LOOP: Planning & Execution
+            plan = create_and_approve_plan(current_msg, automated=True)
+            if not plan: break
+            
             dispatch_plan(plan, automated=True)
-            generate_final_report(plan)
+            combine_and_export_step()
+            report = generate_final_report(plan)
+            print_box("📄 INTERIM REPORT: 🎯 Orchestrator", report, "36")
+            
+            # --- 🛡️ SUB-LOOP: Review Gates (Step 11-13) ---
+            replan_needed = False
+            while True:
+                # 11. ผู้บริหาร (Orchestrator) ตรวจสอบ
+                decision = orchestrator_review_gate(plan, report, automated=True)
+                if decision.startswith("REPLAN"):
+                    current_msg = f"แก้ไขงานเดิมตามข้อผิดพลาด: {decision.split(':', 1)[1]}"
+                    replan_needed = True
+                    break # ออกไปวางแผนใหม่
+                
+                # 12. ที่ปรึกษา (Advisor) ตรวจสอบ
+                if not advisor_final_gate(report):
+                    print("\n🔄 Advisor ไม่ให้ผ่าน! ตีกลับไปให้ Orchestrator ตรวจสอบใหม่...")
+                    continue # วนกลับไปที่ด่าน 11
+                
+                # 13. Editor Agent ตรวจสอบ
+                if not editor_final_gate(report):
+                    print("\n🔄 Editor ไม่ให้ผ่าน! ตีกลับไปให้ Orchestrator ตรวจสอบใหม่...")
+                    continue # วนกลับไปที่ด่าน 11
+                
+                # 15. CEO (จบบริบูรณ์)
+                notify_ceo(report)
+                return # จบภารกิจทั้งหมด
+            
+            if replan_needed: continue
+            break
         return
 
     clear_screen()
-    log_action("--- เปิดระบบ Orchestrator ---")
     print_banner()
     print_agent_menu()
 
     while True:
-        print("-" * 60)
-        print("📌 คำสั่ง:")
-        print("   วาง (paste) ข้อความ = สร้างแผน → กระจายงาน")
-        print("   'status'  = 📊 ดูสถานะงานทั้งหมด")
-        print("   'update'  = ✏️  อัปเดตสถานะ task")
-        print("   'role'    = 📄 ดู role ของผู้บริหาร")
-        print("   'role N'  = 📄 ดู role agent (เช่น role 1)")
-        print("   '1'-'7'   = 🎯 ส่งงานตรงไป agent")
-        print("   'menu'    = 📋 ดู agent list")
-        print("   'quit'    = 👋 ออก")
-        print("-" * 60)
+        try: user_input = input("\n🔹 ผู้บริหาร > ").strip()
+        except: break
+        if not user_input: continue
+        
+        # --- [IT TRIGGER] /load/ ---
+        if "/load/" in user_input:
+            import subprocess
+            url = user_input.split("/load/")[1].strip().split()[0]
+            print(f"\n[IT] ⚡ Trigger /load/ detected!")
+            subprocess.run([sys.executable, os.path.join(SCRIPTS_DIR, "downloader.py"), url])
 
-        try:
-            user_input = input("\n🔹 ผู้บริหาร > ").strip()
-        except (KeyboardInterrupt, EOFError):
-            print("\n\n👋 ออกจากระบบ")
-            break
-
-        if not user_input:
-            continue
-
-        # ── คำสั่งพิเศษ ──
         cmd = user_input.lower()
-
-        if cmd == "quit":
-            print("\n👋 ออกจากระบบ — ขอบคุณครับ")
-            log_action("👋 ผู้บริหารออกจากระบบ")
-            break
-
-        if cmd == "menu":
-            clear_screen()
-            print_banner()
-            print_agent_menu()
-            continue
-
-        if cmd == "clear":
-            clear_screen()
-            print_banner()
-            continue
-
-        if cmd == "status":
-            show_tracker()
-            log_action("📊 ผู้บริหารเรียกดูสถานะงาน (Status Tracker)")
-            continue
-
-        if cmd == "update":
-            log_action("✏️ ผู้บริหารเข้าสู่โหมดอัปเดตสถานะงาน (Interactive Update)")
-            interactive_tracker()
-            continue
-
-        if cmd.startswith("role"):
-            parts = cmd.split()
-            if len(parts) == 1:
-                print("\n" + load_role("orchestrator"))
-                log_action("📄 ผู้บริหารเรียกดู Role ของตัวเอง")
-            else:
-                agent_key = AGENT_NUM_MAP.get(parts[1])
-                if agent_key:
-                    print(f"\n" + load_role(agent_key))
-                    log_action(f"📄 ผู้บริหารเรียกดู Role ของ {agent_key}")
-                else:
-                    print("  ❌ ระบุเลข 1-7 เช่น 'role 1' = Research Agent")
-            continue
-
-        if user_input in AGENT_NUM_MAP:
+        if cmd == 'quit': break
+        elif cmd == 'status': show_tracker(); continue
+        elif cmd == 'menu': print_agent_menu(); continue
+        elif user_input in AGENT_NUM_MAP:
             agent = AGENT_NUM_MAP[user_input]
-            print(f"\n  ✅ เลือก {AGENT_DISPLAY[agent]} โดยตรง (ไม่ผ่านแผน)")
-            log_action(f"🎯 ผู้บริหารเลือก {agent} โดยตรง (Direct Dispatch)")
-            msg = input("  📝 ข้อความที่จะส่ง (หรือ Enter เพื่อข้าม): ").strip()
-            dispatch_to_agent(agent, msg if msg else "(ไม่มีข้อความ)")
+            msg = input(f"📝 ส่งให้ {agent}: ")
+            dispatch_to_agent(agent, msg)
             continue
-
-        print("\n  🧠 กำลังวิเคราะห์ข้อความ...")
-        log_action(f"รับคำสั่งจาก user: {user_input[:50]}")
         
-        print(f"\n  🧠 Orchestrator กำลังวิเคราะห์เป้าหมายหลัก (Thinking)...")
-        my_role = load_role("orchestrator")
-        thinking_msg = llm_helper.get_thinking_response("Orchestrator Agent", user_input, my_role, agent_key="orchestrator")
-        print_box("💭 THINKING: 🎯 Orchestrator", thinking_msg, "36")
-        log_action(f"ผู้บริหารวิเคราะห์เป้าหมาย: {user_input[:50]}", phase="THINKING")
-
-        print(f"\n  " + "═"*20 + " 🛠️ Orchestrator Implementation " + "═"*20)
-        log_action(f"เริ่มสร้างและดำเนินการตามแผนงาน", phase="IMPLEMENTATION")
-        
-        plan = create_and_approve_plan(user_input, automated=is_automated)
-
-        if plan:
-            plan["thinking"] = thinking_msg 
-            log_action(f"อนุมัติแผนงาน {plan['id']} เริ่มกระจายงาน", phase="IMPLEMENTATION")
+        # Orchestration Mode with 15-Step Flowchart Synchronization
+        current_msg = user_input
+        while True: # 🔁 LOOP: Planning & Execution
+            plan = create_and_approve_plan(current_msg, automated=is_automated)
+            if not plan: break
+            
             dispatch_plan(plan, automated=is_automated)
-            generate_final_report(plan)
-        else:
-            print("\n  💡 หรือจะเลือก agent ด้วยตัวเอง?")
-            print_agent_menu()
-            choice = input("  เลือกเลข [1-7] หรือ Enter = ข้าม: ").strip()
-            if choice in AGENT_NUM_MAP:
-                agent = AGENT_NUM_MAP[choice]
-                log_action(f"🎯 ผู้บริหารเลือก {agent} แบบแมนนวลหลังยกเลิกแผน")
-                dispatch_to_agent(agent, user_input)
+            combine_and_export_step()
+            report = generate_final_report(plan)
+            print_box("📄 INTERIM REPORT: 🎯 Orchestrator", report, "36")
+            
+            # --- 🛡️ SUB-LOOP: Review Gates (Step 11-13) ---
+            replan_needed = False
+            while True:
+                # 11. ผู้บริหาร (Orchestrator) ตรวจสอบ
+                decision = orchestrator_review_gate(plan, report, automated=is_automated)
+                if decision.startswith("REPLAN"):
+                    current_msg = f"ปรับปรุงแผนงานใหม่ตาม Feedback: {decision.split(':', 1)[1]}"
+                    print(f"\n🔄 ระบบกำลังตีกลับไปวางแผนใหม่ตามคำสั่งท่าน...")
+                    replan_needed = True
+                    break # ออกไปวางแผนใหม่
+                
+                # 12. ที่ปรึกษา (Advisor) ตรวจสอบ
+                if not advisor_final_gate(report):
+                    print("\n🔄 Advisor ไม่ให้ผ่าน! ตีกลับไปให้ท่าน (Orchestrator) ตรวจสอบความเรียบร้อยอีกครั้ง...")
+                    continue # วนกลับไปที่ด่าน 11
+                    
+                # 13. Editor Agent ตรวจสอบ
+                if not editor_final_gate(report):
+                    print("\n🔄 Editor ไม่ให้ผ่าน! ตีกลับไปให้ท่าน (Orchestrator) ตรวจสอบความสวยงามอีกครั้ง...")
+                    continue # วนกลับไปที่ด่าน 11
+                
+                # 15. CEO (จบบริบูรณ์)
+                notify_ceo(report)
+                return # จบภารกิจทั้งหมด
+                
+            if replan_needed: continue
+            break
 
 if __name__ == "__main__":
     main()

@@ -2,7 +2,10 @@
 
 > **Role:** จำลองมุมมองอาจารย์ที่ปรึกษา, review, ให้ feedback  
 > **Priority:** สูง — Gate keeper ก่อนไปขั้นถัดไป  
-> **Script:** `Scripts/phase4_advisor.py`
+> **Script:** `Scripts/phase4_advisor.py`  
+> **Provider:** Cerebras  
+> **API Key:** `csk-hycteynvrr3k8w3ck3rcttvx5h9hjcy54ryt8edkkky8ffnd`
+
 
 ---
 

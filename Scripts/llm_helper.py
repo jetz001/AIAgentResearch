@@ -21,6 +21,10 @@ def load_env():
 
 load_env()
 
+def get_env_or_default(key: str, default: str = "") -> str:
+    return os.getenv(key, default)
+
+
 # --- Configuration ---
 # สามารถปรับเปลี่ยนผ่าน Environment Variables ได้
 DEFAULT_PROVIDER = os.getenv("LLM_PROVIDER", "ollama").lower() # ollama, openai, gemini, groq
@@ -39,14 +43,27 @@ GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-1.5-flash")
 GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
 GROQ_MODEL = os.getenv("GROQ_MODEL", "mixtral-8x7b-32768")
 
-def call_ollama(prompt: str, system_prompt: str = "") -> str:
+def call_ollama(prompt: str, system_prompt: str = "", api_key: str = None, host: str = None, model: str = None) -> str:
+    url = host or OLLAMA_URL
+    # ถ้า URL ไม่ได้ลงท้ายด้วย /api/generate ให้เติมเข้าไป (ถ้าไม่ใช่ cloud mode ที่อาจจะใช้ endpoint อื่น)
+    if not url.endswith("/api/generate") and "ollama.com" not in url:
+        url = url.rstrip("/") + "/api/generate"
+    elif "ollama.com" in url and not url.endswith("/api/chat"):
+        # Ollama Cloud มักจะใช้ /api/chat หรือ /api/generate
+        url = url.rstrip("/") + "/api/generate"
+
+    headers = {}
+    if api_key:
+        headers["Authorization"] = f"Bearer {api_key}"
+
     payload = {
-        "model": OLLAMA_MODEL,
+        "model": model or OLLAMA_MODEL,
         "prompt": prompt,
         "system": system_prompt,
         "stream": False
     }
-    response = requests.post(OLLAMA_URL, json=payload, timeout=300)
+    
+    response = requests.post(url, json=payload, headers=headers, timeout=300)
     response.raise_for_status()
     return response.json().get("response", "")
 
@@ -62,7 +79,7 @@ def call_openai_compatible(prompt: str, system_prompt: str, api_key: str, model:
             {"role": "user", "content": prompt}
         ]
     }
-    response = requests.post(url, headers=headers, json=payload, timeout=30)
+    response = requests.post(url, headers=headers, json=payload, timeout=600)
     response.raise_for_status()
     return response.json()["choices"][0]["message"]["content"]
 
@@ -77,26 +94,61 @@ def call_gemini(prompt: str, system_prompt: str) -> str:
     response.raise_for_status()
     return response.json()["candidates"][0]["content"]["parts"][0]["text"]
 
-def call_llm(prompt: str, system_prompt: str = "", provider: str = None) -> str:
+def call_llm(prompt: str, system_prompt: str = "", provider: str = None, agent_key: str = None) -> str:
     """
     เรียกใช้ LLM ตาม Provider ที่เลือก
+    - agent_key: เช่น 'research', 'writer' เพื่อดึงค่า config เฉพาะตัว
     """
+    if agent_key:
+        # ลองดึงค่าเฉพาะของ agent เช่น RESEARCH_PROVIDER, RESEARCH_API_KEY, RESEARCH_URL
+        agent_prefix = agent_key.upper()
+        provider = os.getenv(f"{agent_prefix}_PROVIDER", provider)
+    
     provider = provider or DEFAULT_PROVIDER
+    provider = provider.lower()
     
     try:
         if provider == "ollama":
-            return call_ollama(prompt, system_prompt)
+            api_key = os.getenv("OLLAMA_API_KEY")
+            host = OLLAMA_URL
+            model = OLLAMA_MODEL
+            
+            if agent_key:
+                api_key = os.getenv(f"{agent_prefix}_API_KEY", api_key)
+                host = os.getenv(f"{agent_prefix}_BASE_URL", host)
+                model = os.getenv(f"{agent_prefix}_MODEL", model)
+            
+            return call_ollama(prompt, system_prompt, api_key=api_key, host=host, model=model)
         
         elif provider == "openai":
-            if not OPENAI_API_KEY: return "❌ Missing OPENAI_API_KEY"
-            return call_openai_compatible(prompt, system_prompt, OPENAI_API_KEY, OPENAI_MODEL, "https://api.openai.com/v1/chat/completions")
+            api_key = OPENAI_API_KEY
+            model = OPENAI_MODEL
+            url = "https://api.openai.com/v1/chat/completions"
+            
+            if agent_key:
+                api_key = os.getenv(f"{agent_key.upper()}_API_KEY", api_key)
+                model = os.getenv(f"{agent_key.upper()}_MODEL", model)
+                url = os.getenv(f"{agent_key.upper()}_BASE_URL", url)
+            
+            if not api_key: return f"❌ Missing API_KEY for {agent_key or 'openai'}"
+            return call_openai_compatible(prompt, system_prompt, api_key, model, url)
             
         elif provider == "groq":
-            if not GROQ_API_KEY: return "❌ Missing GROQ_API_KEY"
-            return call_openai_compatible(prompt, system_prompt, GROQ_API_KEY, GROQ_MODEL, "https://api.groq.com/openai/v1/chat/completions")
+            api_key = GROQ_API_KEY
+            if agent_key:
+                api_key = os.getenv(f"{agent_key.upper()}_API_KEY", api_key)
+            
+            if not api_key: return "❌ Missing GROQ_API_KEY"
+            model = GROQ_MODEL
+            if agent_key:
+                model = os.getenv(f"{agent_key.upper()}_MODEL", model)
+            return call_openai_compatible(prompt, system_prompt, api_key, model, "https://api.groq.com/openai/v1/chat/completions")
             
         elif provider == "gemini":
-            if not GEMINI_API_KEY: return "❌ Missing GEMINI_API_KEY"
+            api_key = GEMINI_API_KEY
+            if agent_key:
+                api_key = os.getenv(f"{agent_key.upper()}_API_KEY", api_key)
+            if not api_key: return "❌ Missing GEMINI_API_KEY"
             return call_gemini(prompt, system_prompt)
             
         else:
@@ -133,7 +185,7 @@ def get_roleplay_response(agent_name_display: str, task_description: str, role_c
     
     user_prompt = f"ผู้บริหารมอบหมายงานให้คุณดังนี้: {task_description}\n\nกรุณาตอบกลับในฐานะ {agent_name_display}:"
     
-    return call_llm(user_prompt, system_prompt, provider=provider)
+    return call_llm(user_prompt, system_prompt, provider=provider, agent_key=agent_key)
 
 def get_thinking_response(agent_name_display: str, task_description: str, role_content: str, agent_key: str = None) -> str:
     """
@@ -157,7 +209,7 @@ def get_thinking_response(agent_name_display: str, task_description: str, role_c
 - ความยาวปานกลาง (เน้นเนื้อหาการวางแผน)
 """
     user_prompt = f"งานที่คุณได้รับ: {task_description}\n\nกรุณาแสดงกระบวนการคิด (Thinking Process):"
-    return call_llm(user_prompt, system_prompt, provider=provider)
+    return call_llm(user_prompt, system_prompt, provider=provider, agent_key=agent_key)
 
 def get_report_response(agent_name_display: str, work_details: str, role_content: str, agent_key: str = None) -> str:
     """
@@ -182,7 +234,7 @@ def get_report_response(agent_name_display: str, work_details: str, role_content
 - ตอบเป็นภาษาไทย
 """
     user_prompt = f"รายละเอียดงานที่ทำเสร็จ: {work_details}\n\nกรุณาสร้างรายงานสรุป (Report):"
-    return call_llm(user_prompt, system_prompt, provider=provider)
+    return call_llm(user_prompt, system_prompt, provider=provider, agent_key=agent_key)
 
 def get_expanded_instruction(user_message: str, agent_name: str, keywords: str) -> str:
     """

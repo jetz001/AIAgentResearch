@@ -339,15 +339,57 @@ def main(initial_message=""):
         print(f"\n  🧠 กำลังวิเคราะห์งาน (Thinking)...")
         thinking_msg = llm_helper.get_thinking_response("Advisor Agent", initial_message, my_role, agent_key="advisor")
         print_box("💭 THINKING: 👨‍🏫 Advisor Agent", thinking_msg, "33")
-        log_action(f"กระบวนการคิดสำหรับ: {initial_message[:50]}", phase="THINKING")
+        
+        # 📝 DEEP LOG: บันทึกเกณฑ์การตรวจสอบ
+        log_action(f"ADVISOR CRITERIA:\n   💡 โจทย์ตรวจสอบ: {initial_message}\n   🧠 เกณฑ์การพิจารณา: {thinking_msg[:500]}...", phase="THINKING")
 
         # --- Implementation Phase ---
         print(f"\n  " + "═"*20 + " 🛠️ Implementation Phase " + "═"*20)
         print(f"  📨 งานที่ได้รับจากผู้บริหาร: \"{initial_message[:80]}\"")
+        
+        # 🤖 AUTOMATED: ประมวลผลงานและ Exit ทันทีเพื่อส่งคิวต่อให้ main.py
+        is_auto = os.getenv("AUTOMATED") == "1"
+        if is_auto:
+            t = add_todo(initial_message)
+            print(f"  🔍 [AUTO] กำลังประมวลผลคำปรึกษา (Advisor Implementation)...")
+            
+            # --- Substantive Implementation Call ---
+            implementation_prompt = f"""
+            คุณคือ Advisor Agent จงกรอกข้อมูลลงในแบบฟอร์ม 'บันทึกการให้คำปรึกษา' นี้ให้สมบูรณ์ "เดี๋ยวนี้"! 
+            ห้ามมีประโยคทักทาย ห้ามบอกว่าจะทำภายหลัง ห้ามมีเนื้อหาอื่นนอกจากรายงานนี้:
+            
+            --- บันทึกการให้คำปรึกษา (Advisor Consultancy Note) ---
+            หัวข้อ: {initial_message}
+            
+            1. ขอบเขตการวิจัย (Research Scope):
+            [เขียนรายละเอียดขอบเขต LCA และความสำคัญอย่างน้อย 3 ย่อหน้า]
+            
+            2. คำถามวิจัยและวัตถุประสงค์ (RQ & Objectives):
+            [ระบุคำถามวิจัยอย่างน้อย 3 ข้อ และวัตถุประสงค์ที่สอดคล้องกับมาตรฐาน ISO 14040/44]
+            
+            3. ข้อเสนอแนะเชิงเทคนิค (Technical Advice):
+            [ระบุเครื่องมือที่ต้องใช้ และจุดเสี่ยงที่ต้องระวัง]
+            
+            4. ขั้นตอนถัดไป (Next Steps):
+            [ระบุงานที่ Research Agent และ Writer Agent ต้องทำต่อ]
+            
+            --- จบรายงาน ---
+            
+            แนวคิดจากการวิเคราะห์ (Thinking): {thinking_msg}
+            """
+            final_result = llm_helper.get_roleplay_response("Advisor Agent", implementation_prompt, my_role, agent_key="advisor")
+            
+            log_action(f"ADVISOR IMPLEMENTATION COMPLETED (TODO #{t['id']})", phase="IMPLEMENTATION")
+            update_todo(t["id"], status="done", result=final_result)
+            generate_report(f"การให้คำปรึกษาอัตโนมัติสำเร็จ:\n{final_result}")
+            
+            print("\n✅ [AUTO] งานเสร็จสิ้น — ส่งคืนคำปรึกษาให้ผู้บริหาร")
+            return
+            
         if input("  ➕ เพิ่มเข้าแผนการดำเนินการ (TODO)? [Y/N]: ").strip().upper() in ("Y",""):
             t=add_todo(initial_message); print(f"  ✅ เพิ่มแผนงานสำเร็จ #{t['id']}")
-            log_action(f"เริ่ม Implementation (เพิ่มแผนงาน): {initial_message[:50]}", phase="IMPLEMENTATION")
             
+            # 📝 DEEP LOG: บันทึกการรับงานตรวจสอบ
             # --- Auto-execution log ---
             log_action(f"ดำเนินการตามแผนงาน TODO #{t['id']}", phase="IMPLEMENTATION")
             generate_report(f"เริ่มดำเนินการ: {initial_message}\nสร้างแผนงาน (TODO) #{t['id']}")

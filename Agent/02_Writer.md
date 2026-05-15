@@ -2,7 +2,10 @@
 
 > **Role:** เขียน thesis, drafts, manuscripts ทุกประเภท  
 > **Priority:** สูง — สร้างผลลัพธ์หลักของโปรเจค  
-> **Script:** `Scripts/phase3_writing.py`
+> **Script:** `Scripts/phase3_writing.py`  
+> **Provider:** Groq  
+> **API Key:** `[REDACTED]`
+
 
 ---
 
@@ -38,9 +41,9 @@ confirm = input("ยืนยันโครงร่าง? [Y/N]: ")
 → user ตรวจ Y/N → แก้ไข → save
 ```
 
-### SK-WRT-03: Abstract Writing
-- **ทำอะไร:** เขียนบทคัดย่อ (ไทย + English)
-- **ข้อจำกัด:** ไม่เกิน 350 คำ
+### SK-WRT-06: Shared Context Retrieval
+- **ทำอะไร:** อ่านข้อมูลจาก `Memory/Shared/Shared_Context.json` เพื่อนำมาเรียบเรียงงานให้ตรงกับผลการวิจัยล่าสุด
+- **วิธีทำ:** ตรวจสอบไฟล์กลางก่อนเริ่มงานทุกครั้งเพื่อดึง Key Findings และ Citation มาใส่ในเนื้อหา
 - **ต้องมี:** วัตถุประสงค์, วิธีการ, ผลลัพธ์หลัก, สรุป
 - **Output:** `Output/thesis/abstract_th.md`, `Output/thesis/abstract_en.md`
 

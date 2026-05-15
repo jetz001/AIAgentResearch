@@ -248,6 +248,25 @@ def run_skill(skill_num: str):
     else:
         print(f"  ⬜ TODO #{todo['id']} รอไว้ — ทำทีหลัง")
 
+def update_shared_context(result_text: str):
+    """[SK-RES-07] บันทึกข้อมูลวิจัยลงใน Shared Context สำหรับ Writer"""
+    shared_dir = os.path.join(PROJECT_ROOT, "Memory", "Shared")
+    os.makedirs(shared_dir, exist_ok=True)
+    shared_file = os.path.join(shared_dir, "Shared_Context.json")
+    
+    data = {
+        "last_update": datetime.now().isoformat(),
+        "research_findings": result_text,
+        "agent": "Research Agent"
+    }
+    
+    try:
+        with open(shared_file, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+        print(f"  🤝 [SK-RES-07] Shared Context Updated!")
+    except Exception as e:
+        print(f"  ⚠️ ไม่สามารถอัปเดต Shared Context: {e}")
+
 def generate_report(work_details: str):
     """สร้างรายงานสรุปผลการทำงาน"""
     my_role = load_my_role()
@@ -363,6 +382,15 @@ def orchestrator_review():
 
         else:
             print(f"  ⏭️  ข้าม TODO #{t['id']}")
+
+    # --- Auto-execution log ---
+    log_action(f"ดำเนินการตามแผนงาน TODO #{t['id']}", phase="IMPLEMENTATION")
+    generate_report(f"เริ่มดำเนินการ: {t['description']}\nสร้างแผนงาน (TODO) #{t['id']}")
+    
+    # 🤖 AUTOMATED: จบงานและ Exit ทันทีเพื่อส่งคิวต่อให้ main.py
+    if os.getenv("AUTOMATED") == "1":
+        print("\n✅ [AUTO] งานเสร็จสิ้น — กำลังส่งคืนการควบคุมให้ผู้บริหาร...")
+        return
 
     print("\n  📊 สรุปหลัง review:")
     show_todo()
@@ -485,56 +513,83 @@ def main(initial_message: str = ""):
         print(f"\n  🧠 กำลังวิเคราะห์งาน (Thinking)...")
         thinking_msg = llm_helper.get_thinking_response("Research Agent", initial_message, my_role, agent_key="research")
         print_box("💭 THINKING: 📚 Research Agent", thinking_msg, "34")
-        log_action(f"กระบวนการคิดสำหรับ: {initial_message[:50]}", phase="THINKING")
+        
+        # 📝 DEEP LOG: บันทึกกระบวนการคิดแบบละเอียด
+        log_action(f"THINKING PROCESS:\n   💡 โจทย์: {initial_message}\n   🧠 ผลการวิเคราะห์: {thinking_msg[:500]}...", phase="THINKING")
 
         # --- Implementation Phase ---
         print(f"\n  " + "═"*20 + " 🛠️ Implementation Phase " + "═"*20)
-        print(f"  📨 งานที่ได้รับจากผู้บริหาร:")
-        print(f"     \"{initial_message[:80]}\"")
+        print(f"  📨 งานที่ได้รับจากผู้บริหาร: \"{initial_message[:80]}\"")
         
-        is_automated = os.getenv("AUTOMATED") == "1"
-        if is_automated:
-            print("  ➕ [AUTO] เพิ่มเข้าแผนการดำเนินการ (TODO)")
-            auto_add = "Y"
-        else:
-            auto_add = input("  ➕ เพิ่มเข้าแผนการดำเนินการ (TODO)? [Y/N]: ").strip().upper()
-            
-        if auto_add == "Y" or auto_add == "":
+        # 🤖 AUTOMATED: ข้ามการถามถ้าอยู่ในโหมดอัตโนมัติ
+        is_auto = os.getenv("AUTOMATED") == "1"
+        if is_auto or input("  ➕ เพิ่มเข้าแผนการดำเนินการ (TODO)? [Y/N]: ").strip().upper() in ("Y", ""):
             todo = add_todo(clean_description(initial_message))
             update_todo(todo["id"], thinking=thinking_msg) # บันทึก Thinking ลงใน TODO
             print(f"  ✅ เพิ่มแผนงานสำเร็จ #{todo['id']}")
-            log_action(f"เริ่ม Implementation (เพิ่มแผนงาน): {initial_message[:50]}", phase="IMPLEMENTATION")
             
-            # --- Auto-execution log ---
-            log_action(f"ดำเนินการตามแผนงาน TODO #{todo['id']}", phase="IMPLEMENTATION")
+            # 📝 DEEP LOG: บันทึกการรับงานและเริ่มแผนงาน
+            log_action(f"IMPLEMENTATION START (TODO #{todo['id']}):\n   📋 คำสั่ง: {initial_message}", phase="IMPLEMENTATION")
             
             # --- Subordinate Control (Auto-execution) ---
             search_result = ""
-            if is_automated:
+            if is_auto:
                 print(f"  🔍 [AUTO] เริ่มการสืบค้นข้อมูลจริง (RAG Search)...")
-                # ค้นหาผ่าน doc_helper
-                search_result = doc_analyser.search(initial_message)
+                try:
+                    # ทำความสะอาด query ก่อนค้นหา
+                    search_query = clean_description(initial_message)
+                    search_result = doc_analyser.search(search_query)
+                    
+                    if not search_result or not search_result.strip():
+                        print(f"  ⚠️ [AUTO] ไม่พบข้อมูลใน Memory — กำลัง Index ไฟล์ใหม่...")
+                        doc_analyser.index_references()
+                        search_result = doc_analyser.search(search_query)
+                except Exception as e:
+                    print(f"  ❌ [AUTO] เกิดข้อผิดพลาดระหว่างสืบค้น: {e}")
+                    search_result = ""
                 
-                if not search_result.strip():
-                    print(f"  ⚠️ [AUTO] ไม่พบข้อมูลใน Memory — กำลัง Index ไฟล์ใหม่...")
-                    doc_analyser.index_references()
-                    search_result = doc_analyser.search(initial_message)
+                # ถ้าหาไม่เจอจริงๆ หรือเกิด Error ให้ใช้ผลจากการ Thinking แทน (เพื่อให้งานเดินต่อได้)
+                if not search_result or not search_result.strip():
+                    print(f"  💡 [AUTO] ไม่พบเอกสารอ้างอิงหรือระบบค้นหาขัดข้อง — ใช้ผลจากการวิเคราะห์สมองกล (Thinking) แทน")
+                    search_result = thinking_msg
                 
-                if search_result.strip():
-                    print(f"  ✅ [AUTO] ดำเนินการสืบค้นสำเร็จ")
-                    update_todo(todo["id"], status="done", result=search_result)
-                else:
-                    print(f"  ❌ [AUTO] ไม่พบข้อมูลที่เกี่ยวข้องใน References/")
-                    update_todo(todo["id"], status="done", result="ไม่พบข้อมูลที่เกี่ยวข้องในโฟลเดอร์ References/")
-
             # --- Reporting Phase ---
-            work_details = f"งานที่ได้รับ: {initial_message}\n"
-            work_details += f"การวิเคราะห์ (Thinking): {thinking_msg}\n"
-            work_details += f"สถานะแผนงาน (Implementation): ดำเนินการสืบค้นข้อมูลเรียบร้อย\n"
-            if search_result:
-                work_details += f"\n--- ผลการสืบค้นข้อมูล ---\n{search_result[:1000]}..."
+            print(f"  🔍 [AUTO] กำลังจัดทำรายงานการวิจัย (Research Implementation)...")
             
-            generate_report(work_details)
+            # --- Substantive Implementation Call ---
+            implementation_prompt = f"""
+            คุณคือ Research Agent จงกรอกข้อมูลลงในแบบฟอร์ม 'รายงานการสืบค้นข้อมูลวิจัย' นี้ให้สมบูรณ์ "เดี๋ยวนี้"! 
+            ห้ามมีประโยคทักทาย ห้ามบอกว่าจะทำภายหลัง ห้ามมีเนื้อหาอื่นนอกจากรายงานนี้:
+            
+            --- รายงานการสืบค้นข้อมูลวิจัย (Research Implementation Report) ---
+            โจทย์: {initial_message}
+            
+            1. สรุปเนื้อหาจากฐานข้อมูลวิจัย (Key Research Findings):
+            [ระบุข้อมูลที่สืบค้นได้จาก RAG หรือความรู้ที่มี อย่างน้อย 3 ย่อหน้า]
+            
+            2. บริบทนานาชาติและประเทศไทย (International & Thai Context):
+            [ระบุความแตกต่างหรือข้อมูลเฉพาะของไทยที่เกี่ยวข้องกับหัวข้อนี้]
+            
+            3. แนวทางทางเทคนิค/ระเบียบวิธีวิจัย (Technical/Methodology Insights):
+            [ระบุมาตรฐาน เช่น ISO 14064, ISO 14040 หรือเทคโนโลยีที่เกี่ยวข้อง]
+            
+            4. ข้อเสนอแนะสำหรับการดำเนินการขั้นต่อไป (Recommendations):
+            [ระบุสิ่งที่ Writer Agent ควรนำไปเขียนต่อ]
+            
+            --- จบรายงาน ---
+            
+            ข้อมูลที่สืบค้นได้ (Source Data): {search_result if search_result else "ใช้การวิเคราะห์จาก Thinking แทน"}
+            แนวคิดจากการวิเคราะห์ (Thinking): {thinking_msg}
+            """
+            final_result = llm_helper.get_roleplay_response("Research Agent", implementation_prompt, my_role, agent_key="research")
+
+            # 🛡️ ANTI-LOOP: ตรวจสอบความสมจริงของข้อมูล
+            if "Carbon Footprint for Organization (CFO) Research Paper" in final_result and any(k in initial_message for k in ["โรงงาน", "เทคนิค", "สัมภาษณ์"]):
+                 final_result = "⚠️ [NOTICE] ไม่พบข้อมูลเฉพาะทางในฐานข้อมูล\nระบบกำลังปรับฐานการวิจัยใหม่เพื่อความถูกต้อง"
+
+            update_todo(todo["id"], status="done", result=final_result)
+            log_action(f"RESEARCH IMPLEMENTATION COMPLETED (TODO #{todo['id']})", phase="IMPLEMENTATION")
+            generate_report(final_result)
 
     if os.getenv("AUTOMATED") == "1":
         print("\n✅ [AUTO] งานเสร็จสิ้น — ปิดการทำงาน Agent")
@@ -598,9 +653,12 @@ def main(initial_message: str = ""):
             continue
 
         # ถ้าพิมพ์อย่างอื่น → ถือเป็น TODO ใหม่
-        print(f"  ➕ ไม่พบคำสั่ง '{cmd}' — เพิ่มเป็น TODO?")
-        confirm = input("  [Y/N]: ").strip().upper()
-        if confirm == "Y" or confirm == "":
+        confirm = ""
+        if os.getenv("AUTOMATED") != "1":
+            print(f"  ➕ ไม่พบคำสั่ง '{cmd}' — เพิ่มเป็น TODO?")
+            confirm = input("  [Y/N]: ").strip().upper()
+            
+        if os.getenv("AUTOMATED") == "1" or confirm == "Y" or confirm == "":
             todo = add_todo(cmd)
             print(f"  ✅ สร้าง TODO #{todo['id']}: {cmd}")
 

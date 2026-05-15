@@ -2,7 +2,12 @@
 
 > **Role:** ค้นหา วิเคราะห์ สรุปข้อมูลวิจัย  
 > **Priority:** สูง — เป็นฐานของทุก phase  
-> **Script:** `Scripts/phase1_literature.py`, `Scripts/phase2_data.py`
+> **Script:** `Scripts/phase1_literature.py`, `Scripts/phase2_data.py`  
+> **Provider:** Ollama (Cloud)  
+> **Host:** `https://ollama.com`  
+> **API Key:** `2ca8d0d297a54056b3087b45c9d5f199.xFkDISPwpV8cEtxnySK11Ggy`  
+> **Model:** `gpt-oss:120b`
+
 
 ---
 
@@ -58,7 +63,23 @@ for paper in papers:
 - **Focus:** _กำหนดเมื่อได้หัวข้อวิจัย → ดู `Memory/Long Memory/research_topic.md`_
 - **Output:** `Workspace/Decision/gap_analysis.md`
 
-### SK-RES-05: Data Collection
+### SK-RES-07: Shared Context Management
+- **ทำอะไร:** บันทึกข้อมูลวิจัยที่สำคัญลงใน `Memory/Shared/Shared_Context.json` เพื่อให้ Writer Agent นำไปใช้ต่อได้ทันที
+- **วิธีทำ:** ทุกครั้งที่สรุปงานวิจัยเสร็จ ให้บันทึก Key Findings และ Citation ลงในไฟล์กลาง
+_(กำหนดตามหัวข้อวิจัย)_
+- **Storage:** `Data/` (raw) → `Workspace/experiments/` (processed)
+```python
+# ตัวอย่าง
+print("📊 เก็บข้อมูลวิจัย")
+print("1. Primary Data")
+print("2. Secondary Data")
+print("3. Survey / Interview")
+print("4. Observation")
+data_type = input("เลือกประเภทข้อมูล [1-4]: ")
+file_path = input("ระบุ path ไฟล์ข้อมูล (.csv/.xlsx): ")
+```
+
+### SK-RES-08: Data Collection
 - **ทำอะไร:** เก็บข้อมูลจากแหล่งข้อมูลวิจัย
 - **ข้อมูลที่เก็บ:** _(กำหนดตามหัวข้อวิจัย)_
 - **Storage:** `Data/` (raw) → `Workspace/experiments/` (processed)

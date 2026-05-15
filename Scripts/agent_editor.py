@@ -340,15 +340,57 @@ def main(initial_message=""):
         print(f"\n  🧠 กำลังวิเคราะห์งาน (Thinking)...")
         thinking_msg = llm_helper.get_thinking_response("Editor Agent", initial_message, my_role, agent_key="editor")
         print_box("💭 THINKING: 📰 Editor Agent", thinking_msg, "32")
-        log_action(f"กระบวนการคิดสำหรับ: {initial_message[:50]}", phase="THINKING")
+        
+        # 📝 DEEP LOG: บันทึกแผนการขัดเกลาภาษา
+        log_action(f"EDITING STRATEGY:\n   💡 โจทย์ขัดเกลา: {initial_message}\n   🧠 แผนการขัดเกลา: {thinking_msg[:500]}...", phase="THINKING")
 
         # --- Implementation Phase ---
         print(f"\n  " + "═"*20 + " 🛠️ Implementation Phase " + "═"*20)
         print(f"  📨 งานที่ได้รับจากผู้บริหาร: \"{initial_message[:80]}\"")
+        
+        # 🤖 AUTOMATED: ประมวลผลงานและ Exit ทันทีเพื่อส่งคิวต่อให้ main.py
+        is_auto = os.getenv("AUTOMATED") == "1"
+        if is_auto:
+            t = add_todo(initial_message)
+            print(f"  🔍 [AUTO] กำลังดำเนินการตรวจแก้ (Editor Implementation)...")
+            
+            # --- Substantive Implementation Call ---
+            implementation_prompt = f"""
+            คุณคือ Editor Agent จงกรอกข้อมูลลงในแบบฟอร์ม 'รายงานการตรวจทานต้นฉบับ' นี้ให้สมบูรณ์ "เดี๋ยวนี้"! 
+            ห้ามมีประโยคทักทาย ห้ามบอกว่าจะทำภายหลัง ห้ามมีเนื้อหาอื่นนอกจากรายงานนี้:
+            
+            --- รายงานการตรวจทานต้นฉบับ (Manuscript Review Report) ---
+            งานที่ได้รับ: {initial_message}
+            
+            1. การตรวจสอบโครงสร้างและภาษา (Structure & Language):
+            [ระบุจุดที่ต้องแก้ไขในเชิงไวยากรณ์ การไหลลื่นของเนื้อหา และความเป็นวิชาการ]
+            
+            2. ความถูกต้องตามรูปแบบวิทยานิพนธ์ (Formatting Check):
+            [ตรวจสอบการอ้างอิง รูปแบบตาราง และรูปภาพ ให้ตรงตามมาตรฐาน]
+            
+            3. ข้อเสนอแนะเชิงบรรณาธิการ (Editorial Suggestions):
+            [ระบุแนวทางการปรับปรุงเพื่อเพิ่มความน่าเชื่อถือของเนื้อหา]
+            
+            4. ผลการตัดสินเบื้องต้น (Final Verdict):
+            [ระบุว่า 'ผ่าน' หรือ 'ต้องแก้ไขในประเด็นใดบ้าง']
+            
+            --- จบรายงาน ---
+            
+            แนวคิดจากการวิเคราะห์ (Thinking): {thinking_msg}
+            """
+            final_result = llm_helper.get_roleplay_response("Editor Agent", implementation_prompt, my_role, agent_key="editor")
+            
+            log_action(f"EDITOR IMPLEMENTATION COMPLETED (TODO #{t['id']})", phase="IMPLEMENTATION")
+            update_todo(t["id"], status="done", result=final_result)
+            generate_report(f"การตรวจแก้ต้นฉบับสำเร็จ:\n{final_result}")
+            
+            print("\n✅ [AUTO] งานเสร็จสิ้น — ส่งคืนรายงานการตรวจแก้ให้ผู้บริหาร")
+            return
+            
         if input("  ➕ เพิ่มเข้าแผนการดำเนินการ (TODO)? [Y/N]: ").strip().upper() in ("Y",""):
             t=add_todo(initial_message); print(f"  ✅ เพิ่มแผนงานสำเร็จ #{t['id']}")
-            log_action(f"เริ่ม Implementation (เพิ่มแผนงาน): {initial_message[:50]}", phase="IMPLEMENTATION")
             
+            # 📝 DEEP LOG: บันทึกการรับงานขัดเกลา
             # --- Auto-execution log ---
             log_action(f"ดำเนินการตามแผนงาน TODO #{t['id']}", phase="IMPLEMENTATION")
             generate_report(f"เริ่มดำเนินการ: {initial_message}\nสร้างแผนงาน (TODO) #{t['id']}")

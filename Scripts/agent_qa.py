@@ -350,15 +350,42 @@ def main(initial_message=""):
         print(f"\n  🧠 กำลังวิเคราะห์งาน (Thinking)...")
         thinking_msg = llm_helper.get_thinking_response("QA Agent", initial_message, my_role, agent_key="qa")
         print_box("💭 THINKING: ✅ QA Agent", thinking_msg, "31")
-        log_action(f"กระบวนการคิดสำหรับ: {initial_message[:50]}", phase="THINKING")
+        
+        # 📝 DEEP LOG: บันทึกแผนการตรวจสอบคุณภาพ
+        log_action(f"QA STRATEGY:\n   💡 โจทย์ตรวจสอบ: {initial_message}\n   🧠 แผนการ Verification: {thinking_msg[:500]}...", phase="THINKING")
 
         # --- Implementation Phase ---
         print(f"\n  " + "═"*20 + " 🛠️ Implementation Phase " + "═"*20)
         print(f"  📨 งานที่ได้รับจากผู้บริหาร: \"{initial_message[:80]}\"")
+        
+        # 🤖 AUTOMATED: ประมวลผลงานและ Exit ทันทีเพื่อส่งคิวต่อให้ main.py
+        is_auto = os.getenv("AUTOMATED") == "1"
+        if is_auto:
+            t = add_todo(initial_message)
+            print(f"  🔍 [AUTO] กำลังดำเนินการตรวจสอบคุณภาพ (QA Implementation)...")
+            
+            # --- Substantive Implementation Call ---
+            implementation_prompt = f"""
+            ในฐานะ QA Agent จงดำเนินการตรวจสอบคุณภาพตามแผนงานนี้:
+            คำสั่ง: {initial_message}
+            แผนการตรวจสอบ: {thinking_msg}
+            
+            จงเขียน 'รายงานการตรวจสอบคุณภาพ (Quality Assessment Report)' ฉบับสมบูรณ์
+            โดยระบุจุดที่ผ่าน มาตรฐานที่ใช้ และข้อเสนอแนะเพื่อการปรับปรุง (ถ้ามี)
+            """
+            final_result = llm_helper.get_roleplay_response("QA Agent", implementation_prompt, my_role, agent_key="qa")
+            
+            log_action(f"QA IMPLEMENTATION COMPLETED (TODO #{t['id']})", phase="IMPLEMENTATION")
+            update_todo(t["id"], status="done", result=final_result)
+            generate_report(f"ดำเนินการตรวจสอบคุณภาพสำเร็จ:\n{final_result}")
+            
+            print("\n✅ [AUTO] งานเสร็จสิ้น — ส่งคืนรายงานคุณภาพให้ผู้บริหาร")
+            return
+            
         if input("  ➕ เพิ่มเข้าแผนการดำเนินการ (TODO)? [Y/N]: ").strip().upper() in ("Y",""):
             t=add_todo(initial_message); print(f"  ✅ เพิ่มแผนงานสำเร็จ #{t['id']}")
-            log_action(f"เริ่ม Implementation (เพิ่มแผนงาน): {initial_message[:50]}", phase="IMPLEMENTATION")
             
+            # 📝 DEEP LOG: บันทึกการรับงานตรวจสอบคุณภาพ
             # --- Auto-execution log ---
             log_action(f"ดำเนินการตามแผนงาน TODO #{t['id']}", phase="IMPLEMENTATION")
             generate_report(f"เริ่มดำเนินการ: {initial_message}\nสร้างแผนงาน (TODO) #{t['id']}")

@@ -1,0 +1,13 @@
+{
+  "last_update": "2026-05-15T16:38:00Z",
+  "project_title": "การประเมินคาร์บอนฟุตพริ้นท์ตลอดวงจรชีวิต (LCA) และแนวทางการจัดการเพื่อลดการปล่อยก๊าซเรือนกระจกในอุตสาหกรรมผลิตกล่องกระดาษลูกฟูก: กรณีศึกษาโรงงานในประเทศไทย",
+  "goal_and_scope": {
+    "standard": "ISO 14040/14044",
+    "functional_unit": "1 Metric Ton of Corrugated Cardboard",
+    "system_boundary": "Cradle-to-Grave (Raw materials -> Production -> Transport -> Use -> End-of-Life)",
+    "impact_category": "Global Warming Potential (GWP 100)",
+    "allocation": "Mass allocation for recycled pulp and virgin fiber"
+  },
+  "research_guidelines": "เน้นการเก็บข้อมูลปฐมภูมิ (Primary Data) จากโรงงานจริงในไทย ครอบคลุมการใช้พลังงานไฟฟ้า, เชื้อเพลิงบอยเลอร์, และระยะทางขนส่ง เพื่อคำนวณค่า Carbon Intensity ที่แม่นยำ",
+  "status": "Ready for LCI Data Collection (Task #7)"
+}

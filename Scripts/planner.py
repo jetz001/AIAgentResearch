@@ -148,45 +148,44 @@ def new_task(order: int, agent: str, description: str) -> dict:
 # ──────────────────────────────────────────────
 def analyze_and_plan(message: str) -> dict:
     """
-    วิเคราะห์ข้อความจาก user → สร้างแผนงานพร้อม tasks
+    วิเคราะห์ข้อความจาก user ด้วย LLM → สร้างแผนงานพร้อม tasks อัตโนมัติ
     """
     plan = new_plan(message)
-    message_lower = message.lower()
+    print(f"  🧠 Orchestrator กำลังวิเคราะห์โจทย์และร่างแผนงานวิจัย...")
+    
+    # ใช้ LLM ช่วยแตกงาน (Step 2 ใน Flowchart)
+    planner_prompt = f"""วิเคราะห์โจทย์วิจัย: "{message}"
+จงสร้างแผนงาน 15 ขั้นตอนตามมาตรฐานวิทยานิพนธ์ โดยระบุ Agent ที่เหมาะสม (research, writer, qa, advisor, editor, it, hr) 
+และรายละเอียดงานย่อย
 
-    # หาลำดับคำที่ปรากฏ (Index) ของแต่ละ agent
-    scores = {}
-    matched_keywords = {}
-    for agent, keywords in CASE_KEYWORDS.items():
-        matched = []
-        min_idx = len(message_lower)
-        for kw in keywords:
-            kw_lower = kw.lower()
-            idx = message_lower.find(kw_lower)
-            if idx != -1:
-                matched.append(kw)
-                if idx < min_idx:
-                    min_idx = idx
-        
-        if matched:
-            matched_keywords[agent] = matched
-            scores[agent] = min_idx
+คืนค่าในรูปแบบ JSON เท่านั้น:
+{{
+  "thinking": "การวิเคราะห์ภาพรวม",
+  "tasks": [
+    {{"agent": "ชื่อเอเจ้นท์", "description": "รายละเอียดงาน"}}
+  ]
+}}"""
+    
+    response = llm_helper.call_llm(planner_prompt, "คุณคือผู้เชี่ยวชาญการวางแผนงานวิจัยและคุมทีม Multi-Agent AI", agent_key="orchestrator")
+    
+    try:
+        # พยายามดึง JSON จาก response
+        import re
+        json_match = re.search(r'(\{.*\})', response, re.DOTALL)
+        if json_match:
+            plan_data = json.loads(json_match.group(1))
+            plan["thinking"] = plan_data.get("thinking", "")
+            for i, t in enumerate(plan_data.get("tasks", []), 1):
+                plan["tasks"].append(new_task(i, t["agent"], t["description"]))
+    except Exception as e:
+        log_action(f"Error parsing LLM Plan: {e}", phase="ERROR")
+        # Fallback แบบปลอดภัยถ้า AI ตอบพัง
+        plan["tasks"].append(new_task(1, "research", f"ค้นคว้าข้อมูลเกี่ยวกับ: {message}"))
+        plan["tasks"].append(new_task(2, "writer", "ร่างเนื้อหาวิทยานิพนธ์เบื้องต้น"))
+        plan["tasks"].append(new_task(3, "qa", "ตรวจสอบความถูกต้องของเนื้อหา"))
+        plan["tasks"].append(new_task(4, "editor", "ขัดเกลาสำนวนภาษาไทยวิชาการ"))
 
-    # เรียงตามลำดับคำที่ปรากฏในประโยค (จากซ้ายไปขวา / index น้อยไปมาก)
-    sorted_agents = sorted(scores.items(), key=lambda x: x[1])
-
-    for i, (agent, score) in enumerate(sorted_agents, 1):
-        kw_list = ", ".join(matched_keywords[agent][:3])
-        # ขยายความคำสั่งด้วย LLM เพื่อให้ลูกน้องเข้าใจงานชัดเจนขึ้น
-        agent_display_name = AGENT_DISPLAY.get(agent, agent)
-        desc = llm_helper.get_expanded_instruction(message, agent_display_name, kw_list)
-        
-        # ป้องกันกรณี LLM คืนค่าว่าง
-        if not desc or "⚠️" in desc:
-            desc = f"จัดการเรื่อง: {kw_list} (จากข้อความ user)"
-            
-        plan["tasks"].append(new_task(i, agent, desc))
-
-    log_action(f"สร้างแผนงานเบื้องต้น (Implementation) สำหรับ: {message[:50]}", phase="IMPLEMENTATION")
+    log_action(f"AI สร้างแผนงานสำเร็จสำหรับ: {message[:50]}", phase="IMPLEMENTATION")
     return plan
 
 
@@ -392,15 +391,30 @@ def load_plan(plan_id: str) -> dict | None:
 
 
 def list_plans() -> list[dict]:
-    """แสดงรายการแผนทั้งหมด"""
+    """แสดงรายการแผนทั้งหมด เรียงจากใหม่ไปเก่า"""
     plans = []
     if not os.path.exists(PLANS_DIR):
         return plans
-    for f in sorted(os.listdir(PLANS_DIR), reverse=True):
+    
+    file_list = sorted(os.listdir(PLANS_DIR), reverse=True)
+    for f in file_list:
         if f.startswith("plan_") and f.endswith(".json"):
             filepath = os.path.join(PLANS_DIR, f)
-            with open(filepath, "r", encoding="utf-8") as fh:
-                plans.append(json.load(fh))
+            try:
+                with open(filepath, "r", encoding="utf-8") as file:
+                    plans.append(json.load(file))
+            except:
+                continue
+    return plans
+
+
+def find_existing_plan(message: str) -> dict | None:
+    """ค้นหาแผนที่มีหัวข้อเดียวกันและยังไม่เสร็จ (หรือล่าสุด)"""
+    plans = list_plans()
+    for p in plans:
+        if p.get("original_message") == message and p.get("status") in ("approved", "in_progress"):
+            return p
+    return None
     return plans
 
 
@@ -530,10 +544,24 @@ def interactive_tracker():
 def create_and_approve_plan(message: str, automated: bool = False) -> dict | None:
     """
     สร้างแผน → แสดง → ให้ approve → return plan ถ้า approved
-    ใช้จาก main.py:
-        from planner import create_and_approve_plan
-        plan = create_and_approve_plan(user_message)
+    (เพิ่มระบบ Resume: ค้นหาแผนเดิมถ้ามีหัวข้อเดียวกัน)
     """
+    # 🔍 ตรวจสอบแผนงานเดิมก่อน
+    existing = find_existing_plan(message)
+    if existing:
+        print(f"\n  🔍 [Resume] พบแผนงานเดิมที่เกี่ยวข้อง: ID {existing['id']}")
+        if automated:
+            print("  ✅ [AUTO] ดำเนินการต่อจากแผนเดิมอัตโนมัติ")
+            return existing
+        else:
+            confirm = ""
+            if os.getenv("AUTOMATED") != "1":
+                confirm = input(f"  ❓ พบแผนงานเดิมที่ยังไม่เสร็จสิ้น ต้องการทำต่อหรือไม่? [Y/N]: ").strip().upper()
+            
+            if os.getenv("AUTOMATED") == "1" or confirm == "Y" or confirm == "":
+                return existing
+            print("  🆕 กำลังสร้างแผนงานใหม่...")
+
     plan = analyze_and_plan(message)
 
     if not plan["tasks"]:

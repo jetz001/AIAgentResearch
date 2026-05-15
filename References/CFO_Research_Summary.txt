@@ -1,0 +1,40 @@
+Carbon Footprint of Organization (CFO) - Research Summary and Methodology
+
+In Thailand, the Carbon Footprint of Organization (CFO) is a standardized framework managed by the Thailand Greenhouse Gas Management Organization (TGO). It serves as a crucial tool for organizations to measure and manage their greenhouse gas (GHG) emissions.
+
+### 1. Core Methodology and Standards
+The TGO CFO framework is built upon international standards to ensure global compatibility and transparency:
+*   ISO 14064-1: Specification with guidance at the organization level for quantification and reporting of GHG emissions and removals.
+*   GHG Protocol: The Corporate Accounting and Reporting Standard.
+*   ISO/TR 14069: Guidance for the application of ISO 14064-1.
+
+### 2. Emission Scopes
+Organizations must categorize their GHG emissions into three scopes:
+*   Scope 1 (Direct GHG Emissions): Emissions from sources owned or controlled by the organization, such as:
+    *   Stationary combustion (e.g., boilers, furnaces).
+    *   Mobile combustion (e.g., company-owned vehicles).
+    *   Physical or chemical processes.
+    *   Fugitive emissions (e.g., refrigerant leaks).
+*   Scope 2 (Energy Indirect GHG Emissions): Emissions from the generation of purchased electricity, heat, or steam consumed by the organization.
+*   Scope 3 (Other Indirect GHG Emissions): Optional but encouraged emissions that occur in the value chain, including both upstream and downstream activities (e.g., business travel, waste disposal, employee commuting).
+
+### 3. Implementation Steps (TGO Process)
+1.  Define Organizational and Operational Boundaries: Identifying which parts of the company and which activities are included.
+2.  Identify Emission Sources: Mapping out all activities that generate GHGs across the three scopes.
+3.  Data Collection and Calculation: Collecting activity data (e.g., liters of fuel, kWh of electricity) and applying emission factors provided by TGO.
+4.  GHG Reporting and Documentation: Preparing a CFO report according to TGO templates.
+5.  Verification: Undergoing third-party verification by a TGO-registered verification body.
+6.  Registration: Submitting the verified report to TGO for formal certification and use of the "CFO Logo."
+
+### 4. Benefits and Strategic Objectives
+*   Identifying Emission "Hot Spots": Allowing for targeted carbon reduction strategies.
+*   Cost Reduction: Often, carbon reduction leads to improved energy efficiency and lower operational costs (e.g., through MFCA - Material Flow Cost Accounting).
+*   Competitiveness: Meeting international requirements and customer demands for environmental transparency.
+*   Preparedness: Getting ready for potential future mandatory reporting or carbon taxes.
+*   Access to Carbon Markets: Laying the groundwork for participation in the Thailand Voluntary Emission Reduction (T-VER) program.
+
+### 5. Research Trends
+Current research in Thailand often focuses on:
+*   Integration of CFO with MFCA (Material Flow Cost Accounting) to identify negative products and their associated carbon costs.
+*   Case studies in specific industrial sectors (e.g., paper and packaging, agriculture, food processing).
+*   Digital tools and the "CFO Platform" for automated reporting.

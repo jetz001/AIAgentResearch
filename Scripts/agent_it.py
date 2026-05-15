@@ -340,15 +340,57 @@ def main(initial_message=""):
         print(f"\n  🧠 กำลังวิเคราะห์งาน (Thinking)...")
         thinking_msg = llm_helper.get_thinking_response("IT Agent", initial_message, my_role, agent_key="it")
         print_box("💭 THINKING: 💻 IT Agent", thinking_msg, "37")
-        log_action(f"กระบวนการคิดสำหรับ: {initial_message[:50]}", phase="THINKING")
+        
+        # 📝 DEEP LOG: บันทึกแผนการเชิงเทคนิค
+        log_action(f"IT STRATEGY:\n   💡 โจทย์เทคนิค: {initial_message}\n   🧠 แผนการดำเนินการ: {thinking_msg[:500]}...", phase="THINKING")
 
         # --- Implementation Phase ---
         print(f"\n  " + "═"*20 + " 🛠️ Implementation Phase " + "═"*20)
         print(f"  📨 งานที่ได้รับจากผู้บริหาร: \"{initial_message[:80]}\"")
+        
+        # 🤖 AUTOMATED: ประมวลผลงานและ Exit ทันทีเพื่อส่งคิวต่อให้ main.py
+        is_auto = os.getenv("AUTOMATED") == "1"
+        if is_auto:
+            t = add_todo(initial_message)
+            print(f"  🔍 [AUTO] กำลังดำเนินการทางเทคนิค (IT Implementation)...")
+            
+            # --- Substantive Implementation Call ---
+            implementation_prompt = f"""
+            คุณคือ IT Agent จงกรอกข้อมูลลงในแบบฟอร์ม 'รายงานการดำเนินการทางเทคนิค' นี้ให้สมบูรณ์ "เดี๋ยวนี้"! 
+            ห้ามมีประโยคทักทาย ห้ามบอกว่าจะทำภายหลัง ห้ามมีเนื้อหาอื่นนอกจากรายงานนี้:
+            
+            --- รายงานการดำเนินการทางเทคนิค (Technical Execution Report) ---
+            งานที่ได้รับ: {initial_message}
+            
+            1. การออกแบบระบบและฐานข้อมูล (System Design):
+            [ระบุโครงสร้าง Database, ตารางข้อมูล หรือซอฟต์แวร์ที่ติดตั้ง อย่างละเอียด]
+            
+            2. ขั้นตอนการดำเนินการที่เสร็จสิ้น (Action Taken):
+            [ระบุขั้นตอนที่ได้ลงมือทำจริง และสคริปต์ที่ใช้]
+            
+            3. ผลลัพธ์และสถานะความพร้อม (Outcome & Readiness):
+            [ยืนยันความพร้อมของระบบ และความปลอดภัยของข้อมูล]
+            
+            4. ข้อมูลการเข้าใช้งาน (Access Info):
+            [ระบุ Path หรือ URL สำหรับเข้าถึงข้อมูล/ระบบ]
+            
+            --- จบรายงาน ---
+            
+            แนวคิดจากการวิเคราะห์ (Thinking): {thinking_msg}
+            """
+            final_result = llm_helper.get_roleplay_response("IT Agent", implementation_prompt, my_role, agent_key="it")
+            
+            log_action(f"IT IMPLEMENTATION COMPLETED (TODO #{t['id']})", phase="IMPLEMENTATION")
+            update_todo(t["id"], status="done", result=final_result)
+            generate_report(f"การดำเนินการทางเทคนิคสำเร็จ:\n{final_result}")
+            
+            print("\n✅ [AUTO] งานเสร็จสิ้น — ส่งคืนรายงานทางเทคนิคให้ผู้บริหาร")
+            return
+            
         if input("  ➕ เพิ่มเข้าแผนการดำเนินการ (TODO)? [Y/N]: ").strip().upper() in ("Y",""):
             t=add_todo(initial_message); print(f"  ✅ เพิ่มแผนงานสำเร็จ #{t['id']}")
-            log_action(f"เริ่ม Implementation (เพิ่มแผนงาน): {initial_message[:50]}", phase="IMPLEMENTATION")
             
+            # 📝 DEEP LOG: บันทึกการรับงานเทคนิค
             # --- Auto-execution log ---
             log_action(f"ดำเนินการตามแผนงาน TODO #{t['id']}", phase="IMPLEMENTATION")
             generate_report(f"เริ่มดำเนินการ: {initial_message}\nสร้างแผนงาน (TODO) #{t['id']}")

@@ -107,6 +107,18 @@ def show_todo():
     pct = int(done_c/len(todos)*100) if todos else 0
     print(f"  Progress: [{'█'*(pct//10)}{'░'*(10-pct//10)}] {pct}% ({done_c}/{len(todos)})")
 
+def read_shared_context():
+    """[SK-WRT-06] อ่านข้อมูลวิจัยจาก Shared Context"""
+    shared_file = os.path.join(PROJECT_ROOT, "Memory", "Shared", "Shared_Context.json")
+    if os.path.exists(shared_file):
+        try:
+            with open(shared_file, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                return data.get("research_findings", "")
+        except Exception as e:
+            print(f"  ⚠️ ไม่สามารถอ่าน Shared Context: {e}")
+    return ""
+
 # ── Skills ──
 SKILL_MENU = {
     "1": ("SK-WRT-01","Thesis Outline","สร้างโครงร่างวิทยานิพนธ์"),
@@ -297,6 +309,12 @@ def print_menu():
 def main(initial_message=""):
     print_banner(); print_menu()
     if initial_message and initial_message != "(ไม่มีข้อความ)":
+        # [SK-WRT-06] ดึงข้อมูลจาก Shared Context มาช่วยเขียน
+        shared_info = read_shared_context()
+        if shared_info:
+            print(f"  🤝 [SK-WRT-06] พบข้อมูลวิจัยใน Shared Context — กำลังนำมาประมวลผล...")
+            initial_message += f"\n\n[Shared Context from Research]:\n{shared_info}"
+
         # ดึง Role มาให้ LLM วิเคราะห์
         my_role = load_my_role()
         
@@ -310,38 +328,94 @@ def main(initial_message=""):
         print(f"\n  🧠 กำลังวิเคราะห์งาน (Thinking)...")
         thinking_msg = llm_helper.get_thinking_response("Writer Agent", initial_message, my_role, agent_key="writer")
         print_box("💭 THINKING: ✍️ Writer Agent", thinking_msg, "35")
-        log_action(f"กระบวนการคิดสำหรับ: {initial_message[:50]}", phase="THINKING")
+        
+        # 📝 DEEP LOG: บันทึกโครงสร้างความคิดเบื้องต้น
+        log_action(f"WRITING STRATEGY:\n   💡 โจทย์: {initial_message}\n   🧠 แผนการเขียน: {thinking_msg[:500]}...", phase="THINKING")
 
         # --- Implementation Phase ---
         print(f"\n  " + "═"*20 + " 🛠️ Implementation Phase " + "═"*20)
         print(f"  📨 งานที่ได้รับจากผู้บริหาร: \"{initial_message[:80]}\"")
         
-        is_automated = os.getenv("AUTOMATED") == "1"
-        if is_automated:
-            print("  ➕ [AUTO] เพิ่มเข้าแผนการดำเนินการ (TODO)")
-            auto_add = "Y"
-        else:
-            auto_add = input("  ➕ เพิ่มเข้าแผนการดำเนินการ (TODO)? [Y/N]: ").strip().upper()
-
-        if auto_add in ("Y",""):
+        # 🤖 AUTOMATED: ข้ามการถามถ้าอยู่ในโหมดอัตโนมัติ
+        is_auto = os.getenv("AUTOMATED") == "1"
+        if is_auto or input("  ➕ เพิ่มเข้าแผนการดำเนินการ (TODO)? [Y/N]: ").strip().upper() in ("Y",""):
             t=add_todo(clean_description(initial_message))
             # บันทึก Thinking ลงใน TODO
             update_todo(t["id"], thinking=thinking_msg)
             print(f"  ✅ เพิ่มแผนงานสำเร็จ #{t['id']}")
-            log_action(f"เริ่ม Implementation (เพิ่มแผนงาน): {initial_message[:50]}", phase="IMPLEMENTATION")
             
-            # --- Auto-execution log ---
-            log_action(f"ดำเนินการตามแผนงาน TODO #{t['id']}", phase="IMPLEMENTATION")
+            # 📝 DEEP LOG: บันทึกการรับงานเขียน
+            log_action(f"WRITING TASK START (TODO #{t['id']}):\n   📋 หัวข้อ: {initial_message}", phase="IMPLEMENTATION")
             
             # --- Reporting Phase ---
             work_details = f"งานที่ได้รับ: {initial_message}\n"
             work_details += f"การวิเคราะห์ (Thinking): {thinking_msg}\n"
             work_details += f"สถานะแผนงาน (Implementation): สร้าง TODO #{t['id']} เรียบร้อย"
-            generate_report(work_details)
+            
+            # --- Draft Generation Phase ---
+            print(f"\n  ✍️ [SK-WRT-02] กำลังเขียนเนื้อหาตามคำสั่งของผู้บริหาร (Academic Style)...")
+            
+            # ตรวจสอบบทที่หรือภาคผนวก
+            import re
+            chapter_match = re.search(r'(?:บทที่|Chapter)\s*(\d+)', initial_message)
+            appendix_match = re.search(r'ภาคผนวก', initial_message)
+            
+            if chapter_match:
+                chapter_num = chapter_match.group(1)
+            elif appendix_match:
+                chapter_num = "Appendix"
+            else:
+                chapter_num = "1"
+            
+            draft_sys_prompt = f"""คุณคือผู้เชี่ยวชาญการเขียนวิทยานิพนธ์ระดับดุษฎีบัณฑิต (PhD) ที่เน้นความสละสลวยของภาษาไทย
+กฎการทำงาน:
+- ใช้ภาษาไทยระดับวิชาการสูงสุด (Academic Thai) เท่านั้น
+- ห้ามมีภาษาอังกฤษปนในเนื้อหาเด็ดขาด (ห้ามมีภาษาอังกฤษในวงเล็บ)
+- ใช้คำทับศัพท์ภาษาไทยที่ถูกต้อง (เช่น คาร์บอนฟุตพริ้นท์, ดิจิทัล, ฟล็กซ์โกราฟิก)
+- อ้างอิงแหล่งที่มาเป็นภาษาไทยตามมาตรฐาน APA 7th
+- ห้ามมีคำทักทาย หรือกระบวนการคิด เริ่มต้นที่เนื้อหาทันที
+- หากมีการแทรกรูปภาพ ให้ใช้รูปแบบ ![ชื่อรูป](พาธรูปภาพ) ในตำแหน่งที่เหมาะสม"""
+            
+            draft_prompt = f"คำสั่งจากผู้บริหาร: {initial_message}\n\nกรุณาเขียนเนื้อหาให้สมบูรณ์แบบตามโครงสร้างวิทยานิพนธ์ไทย"
+            actual_draft = llm_helper.call_llm(draft_prompt, draft_sys_prompt, agent_key="writer")
+            
+            # 📝 DEEP LOG: พรีวิวเนื้อหาที่ร่างสำเร็จ
+            log_action(f"DRAFT COMPLETED (Chapter {chapter_num}):\n   ✍️ เนื้อหาบางส่วน: {actual_draft[:500]}...", phase="DRAFTING")
+            
+            # อัปเดตผลงานลง TODO ทันที (เพื่อให้ Orchestrator อ่านได้)
+            update_todo(t["id"], status="done", result=actual_draft)
+            work_details += f"\n✍️ ร่างเนื้อหาสำเร็จ (ความยาว {len(actual_draft)} ตัวอักษร)"
 
-    if os.getenv("AUTOMATED") == "1":
-        print("\n✅ [AUTO] งานเสร็จสิ้น — ปิดการทำงาน Agent")
-        return
+            # --- [IT TRIGGER] Word Generation ---
+            if "Word" in initial_message or ".docx" in initial_message:
+                print(f"  📂 [IT] กำลังสร้างไฟล์ Word จากเนื้อหาที่ร่างสำเร็จ...")
+                
+                # ตั้งชื่อไฟล์ให้ตรงกับบท
+                safe_name = initial_message.split("บันทึกเป็น Word ชื่อไฟล์")[-1].strip().replace('"', '')
+                if not safe_name.endswith(".docx"):
+                    safe_name = f"Chapter{chapter_num}_Draft.docx"
+                
+                draft_file = os.path.join(THESIS_DIR, f"chapter{chapter_num}_draft.md")
+                word_file = os.path.join(THESIS_DIR, safe_name)
+                
+                # เขียนร่างจริงลง md
+                with open(draft_file, "w", encoding="utf-8") as f:
+                    f.write(actual_draft)
+                
+                import subprocess
+                gen_script = os.path.join(PROJECT_ROOT, "Scripts", "word_generator.py")
+                python_exe = r"C:\Users\Boss-QA\AppData\Local\Programs\Python\Python312\python.exe"
+                subprocess.run([python_exe, gen_script, draft_file, word_file])
+                
+                update_todo(t["id"], output_file=word_file)
+                work_details += f"\n📂 สร้างไฟล์ Word สำเร็จ: {word_file}"
+                log_action(f"FILE GENERATED: {word_file}", phase="EXPORT")
+
+            generate_report(work_details)
+            
+            if is_auto:
+                print("\n✅ [AUTO] งานเสร็จสิ้น — กำลังส่งคืนการควบคุมให้ผู้บริหาร...")
+                return
 
     while True:
         print("\n"+"-"*50)

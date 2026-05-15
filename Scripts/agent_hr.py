@@ -330,15 +330,57 @@ def main(initial_message=""):
         print(f"\n  🧠 กำลังวิเคราะห์งาน (Thinking)...")
         thinking_msg = llm_helper.get_thinking_response("HR Agent", initial_message, my_role, agent_key="hr")
         print_box("💭 THINKING: 👥 HR Agent", thinking_msg, "36")
-        log_action(f"กระบวนการคิดสำหรับ: {initial_message[:50]}", phase="THINKING")
+        
+        # 📝 DEEP LOG: บันทึกแผนการบริหารจัดการ
+        log_action(f"HR STRATEGY:\n   💡 โจทย์บริหาร: {initial_message}\n   🧠 แผนการประสานงาน: {thinking_msg[:500]}...", phase="THINKING")
 
         # --- Implementation Phase ---
         print(f"\n  " + "═"*20 + " 🛠️ Implementation Phase " + "═"*20)
         print(f"  📨 งานที่ได้รับจากผู้บริหาร: \"{initial_message[:80]}\"")
+        
+        # 🤖 AUTOMATED: ประมวลผลงานและ Exit ทันทีเพื่อส่งคิวต่อให้ main.py
+        is_auto = os.getenv("AUTOMATED") == "1"
+        if is_auto:
+            t = add_todo(initial_message)
+            print(f"  🔍 [AUTO] กำลังดำเนินการประสานงาน (HR Implementation)...")
+            
+            # --- Substantive Implementation Call ---
+            implementation_prompt = f"""
+            คุณคือ HR Agent จงกรอกข้อมูลลงในแบบฟอร์ม 'แผนการดำเนินงานและตารางประสานงาน' นี้ให้สมบูรณ์ "เดี๋ยวนี้"! 
+            ห้ามมีประโยคทักทาย ห้ามบอกว่าจะทำภายหลัง ห้ามมีเนื้อหาอื่นนอกจากรายงานนี้:
+            
+            --- แผนการดำเนินงานและตารางประสานงาน (Coordination & Schedule Plan) ---
+            งานที่ได้รับ: {initial_message}
+            
+            1. รายชื่อผู้รับผิดชอบและบทบาท (Stakeholders & Roles):
+            [ระบุชื่อ Agent หรือตำแหน่งที่ต้องเกี่ยวข้อง และหน้าที่ที่ต้องรับผิดชอบ]
+            
+            2. ตารางเวลาการดำเนินงาน (Implementation Schedule):
+            [ระบุขั้นตอนเป็นรายสัปดาห์ หรือรายวัน ที่ต้องดำเนินการ]
+            
+            3. แผนการประสานงานกับโรงงาน (Factory Liaison Plan):
+            [ระบุวิธีการนัดหมาย เอกสารที่ต้องเตรียม และช่องทางการสื่อสาร]
+            
+            4. การติดตามผลและประเมินผล (Monitoring & Evaluation):
+            [ระบุวิธีการเช็คความคืบหน้า และเกณฑ์การวัดความสำเร็จของขั้นตอนนั้นๆ]
+            
+            --- จบรายงาน ---
+            
+            แนวคิดจากการวิเคราะห์ (Thinking): {thinking_msg}
+            """
+            final_result = llm_helper.get_roleplay_response("HR Agent", implementation_prompt, my_role, agent_key="hr")
+            
+            log_action(f"HR IMPLEMENTATION COMPLETED (TODO #{t['id']})", phase="IMPLEMENTATION")
+            update_todo(t["id"], status="done", result=final_result)
+            generate_report(f"การประสานงานอัตโนมัติสำเร็จ:\n{final_result}")
+            
+            print("\n✅ [AUTO] งานเสร็จสิ้น — ส่งคืนแผนการประสานงานให้ผู้บริหาร")
+            return
+            
         if input("  ➕ เพิ่มเข้าแผนการดำเนินการ (TODO)? [Y/N]: ").strip().upper() in ("Y",""):
             t=add_todo(initial_message); print(f"  ✅ เพิ่มแผนงานสำเร็จ #{t['id']}")
-            log_action(f"เริ่ม Implementation (เพิ่มแผนงาน): {initial_message[:50]}", phase="IMPLEMENTATION")
             
+            # 📝 DEEP LOG: บันทึกการรับงานบริหาร
             # --- Auto-execution log ---
             log_action(f"ดำเนินการตามแผนงาน TODO #{t['id']}", phase="IMPLEMENTATION")
             generate_report(f"เริ่มดำเนินการ: {initial_message}\nสร้างแผนงาน (TODO) #{t['id']}")
